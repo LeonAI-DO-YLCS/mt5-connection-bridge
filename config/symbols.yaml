@@ -1,0 +1,52 @@
+# Symbol Mapping Configuration
+# Maps user-facing ticker names to broker-specific MT5 symbol names.
+# Add entries as needed for your broker (Deriv.com defaults shown).
+
+symbols:
+  # Synthetic Indices (Deriv)
+  V10:
+    mt5_symbol: "Volatility 10 Index"
+    lot_size: 0.01
+    category: synthetic
+
+  V25:
+    mt5_symbol: "Volatility 25 Index"
+    lot_size: 0.01
+    category: synthetic
+
+  V50:
+    mt5_symbol: "Volatility 50 Index"
+    lot_size: 0.01
+    category: synthetic
+
+  V75:
+    mt5_symbol: "Volatility 75 Index"
+    lot_size: 0.01
+    category: synthetic
+
+  V100:
+    mt5_symbol: "Volatility 100 Index"
+    lot_size: 0.01
+    category: synthetic
+
+  # Forex (Deriv)
+  EURUSD:
+    mt5_symbol: "EURUSD"
+    lot_size: 0.01
+    category: forex
+
+  GBPUSD:
+    mt5_symbol: "GBPUSD"
+    lot_size: 0.01
+    category: forex
+
+  USDJPY:
+    mt5_symbol: "USDJPY"
+    lot_size: 0.01
+    category: forex
+
+  # Equities (if available on broker — adjust mt5_symbol per broker)
+  # AAPL:
+  #   mt5_symbol: "AAPL.US"
+  #   lot_size: 1.0
+  #   category: equity
