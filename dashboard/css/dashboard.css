@@ -1,0 +1,140 @@
+:root {
+  --bg: #0a1724;
+  --panel: #102338;
+  --card: #17334f;
+  --text: #eaf4ff;
+  --muted: #9eb7ce;
+  --accent: #5ad8ff;
+  --warn: #ffcb6b;
+  --danger: #ff6b6b;
+  --ok: #58e6a9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top right, #1a3551, var(--bg));
+}
+
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.panel {
+  margin-top: 1rem;
+  background: rgba(16, 35, 56, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tab {
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tab.active {
+  outline: 2px solid var(--accent);
+}
+
+.tab-danger {
+  margin-left: auto;
+  background: #5a1f2b;
+}
+
+.hidden {
+  display: none;
+}
+
+.badge {
+  padding: 0.3rem 0.6rem;
+  border-radius: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: #2f3f54;
+}
+
+.error {
+  color: var(--danger);
+  min-height: 1.2rem;
+}
+
+.grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.grid.two {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.card {
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.75rem;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.small {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.ok {
+  color: var(--ok);
+}
+
+@media (max-width: 680px) {
+  .shell {
+    padding: 0.5rem;
+  }
+
+  .tab-danger {
+    margin-left: 0;
+  }
+}

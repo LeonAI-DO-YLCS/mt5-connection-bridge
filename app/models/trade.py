@@ -10,17 +10,14 @@ from pydantic import BaseModel, Field
 
 
 class TradeRequest(BaseModel):
-    """Incoming trade execution request."""
-
     ticker: str = Field(..., description="User-facing ticker name (must exist in symbol map)")
     action: Literal["buy", "sell", "short", "cover"] = Field(..., description="Trade action")
     quantity: float = Field(..., gt=0, description="Desired quantity (will be normalized to lot size)")
     current_price: float = Field(..., gt=0, description="Current market price for slippage protection")
+    multi_trade_mode: bool = Field(default=False, description="Allow parallel execution submissions")
 
 
 class TradeResponse(BaseModel):
-    """Trade execution result."""
-
     success: bool = False
     filled_price: float | None = None
     filled_quantity: float | None = None

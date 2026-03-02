@@ -5,17 +5,15 @@ Windows-native FastAPI microservice that connects MetaTrader 5 (MT5) to the Dock
 ## Purpose
 
 - Keep MT5 integration outside Linux containers (MT5 Python API is Windows-only).
-- Expose HTTP endpoints for:
-1. Health checks
-2. Historical OHLCV prices
-3. Live trade execution
-- Return schema-compatible payloads used by the existing AI Hedge Fund stack.
+- Preserve existing bridge contracts (`/health`, `/prices`, `/execute`) and add operational verification surfaces.
+- Provide dashboard-driven validation for status, symbols, prices, execution safety, logs, config, and metrics.
 
 ## Architecture
 
 - `mt5-connection-bridge` runs on Windows host alongside MT5 terminal.
 - AI Hedge Fund backend (Docker/Linux) calls bridge over HTTP via `MT5_BRIDGE_URL`.
-- All MT5 calls are serialized through a dedicated worker thread (`app/mt5_worker.py`).
+- MT5 calls remain serialized through a dedicated worker queue (`app/mt5_worker.py`).
+- Operational metrics are captured in `logs/metrics.jsonl` with a rolling retention policy.
 
 ## Project Layout
 
@@ -26,136 +24,119 @@ mt5-connection-bridge/
 │   ├── config.py
 │   ├── auth.py
 │   ├── audit.py
+│   ├── metrics.py
 │   ├── mt5_worker.py
 │   ├── models/
 │   ├── mappers/
 │   └── routes/
+├── dashboard/
+│   ├── index.html
+│   ├── css/dashboard.css
+│   └── js/
 ├── config/symbols.yaml
 ├── logs/
+├── tests/
 ├── requirements.txt
+├── requirements-dev.txt
 └── .env.example
 ```
 
-## Requirements
+## Runtime Configuration
 
-- Windows machine with MetaTrader 5 installed and logged into broker account (e.g. Deriv).
-- Python 3.11+.
-- MT5 terminal running before bridge startup.
+Copy `.env.example` to `.env` and set credentials/policies.
 
-## Setup
+Key feature flags:
 
-```bash
-cd mt5-connection-bridge
-python -m pip install -r requirements.txt
-copy .env.example .env
-```
-
-Update `.env`:
-
-```env
-MT5_BRIDGE_PORT=8001
-MT5_BRIDGE_API_KEY=replace-with-secure-value
-MT5_LOGIN=<account_id>
-MT5_PASSWORD=<account_password>
-MT5_SERVER=Deriv-Demo
-```
-
-Update symbol mappings in `config/symbols.yaml` for your broker symbol names.
+- `EXECUTION_ENABLED=false` (default safety gate)
+- `METRICS_RETENTION_DAYS=90`
+- `MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD=100`
+- `MAX_PRE_DISPATCH_SLIPPAGE_PCT=1.0`
+- `MAX_POST_FILL_SLIPPAGE_PCT=1.0`
 
 ## Run
 
 ```bash
+cd mt5-connection-bridge
+python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ## API
 
-All endpoints require header:
+All API routes require:
 
 ```text
 X-API-KEY: <MT5_BRIDGE_API_KEY>
 ```
 
-### `GET /health`
+### Existing routes (compatibility)
 
-Reports bridge/terminal connectivity and account status.
+- `GET /health`
+- `GET /prices`
+- `POST /execute`
 
-### `GET /prices`
+### Additive operational routes
 
-Query params:
-- `ticker`
-- `start_date` (`YYYY-MM-DD`)
-- `end_date` (`YYYY-MM-DD`)
-- `timeframe` (`M1|M5|M15|M30|H1|H4|D1|W1|MN1`, default `D1`)
+- `GET /symbols`
+- `GET /logs?limit=&offset=`
+- `GET /config`
+- `GET /worker/state`
+- `GET /metrics`
 
-Returns:
+## Dashboard
 
-```json
-{
-  "ticker": "V75",
-  "prices": [
-    {
-      "open": 0,
-      "close": 0,
-      "high": 0,
-      "low": 0,
-      "volume": 0,
-      "time": "2026-01-01T00:00:00Z"
-    }
-  ]
-}
+- URL: `/dashboard/`
+- Tabs: Status, Symbols, Prices, Execute, Logs, Config, Metrics
+- Session behavior: API key stored in `sessionStorage`, cleared on browser tab close (`beforeunload`)
+
+Execution tab safety controls:
+
+- Policy badge for `EXECUTION_ENABLED`
+- Explicit risk-confirmation checkbox
+- Multi-trade toggle with warning
+- Single-flight blocking when multi-trade is off
+- Queue overload rejection based on `MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD`
+
+## Testing
+
+Install dev dependencies:
+
+```bash
+python -m pip install -r requirements-dev.txt
 ```
 
-### `POST /execute`
+Run full regression suite:
 
-Request:
-
-```json
-{
-  "ticker": "V75",
-  "action": "buy",
-  "quantity": 0.01,
-  "current_price": 450000.0
-}
+```bash
+pytest
 ```
 
-Response:
+Coverage gate:
 
-```json
-{
-  "success": true,
-  "filled_price": 450001.5,
-  "filled_quantity": 0.01,
-  "ticket_id": 123456789,
-  "error": null
-}
+- Enforced by `pytest.ini`
+- Minimum statement coverage: `>=90%`
+
+Optional focused runs:
+
+```bash
+pytest tests/unit
+pytest tests/integration
+pytest tests/contract
+pytest tests/performance
 ```
 
-Trade audit events are written to `logs/trades.jsonl`.
+## Validation Snapshot
 
-## AI Hedge Fund Environment
+Latest local run on **March 2, 2026**:
 
-Set these in the main project `.env`:
-
-```env
-DEFAULT_DATA_PROVIDER=mt5
-MT5_BRIDGE_URL=http://host.docker.internal:8001
-MT5_BRIDGE_API_KEY=replace-with-same-api-key
-LIVE_TRADING=false
-```
-
-`LIVE_TRADING` must be explicitly set to `true` before any live execution path is used.
-
-## Failure Handling
-
-- MT5 worker reconnect retries: exponential backoff (`1s, 2s, 4s, 8s...`, max 5 tries, capped to 30s delay).
-- If reconnect fails, worker transitions to `DISCONNECTED` and queued requests fail with connection errors (mapped to HTTP 503 in routes).
-- Unknown tickers return HTTP 404.
-- Invalid actions/quantities return HTTP 422.
+- `49 passed`
+- Coverage: `90.13%`
+- Command: `.venv/bin/python -m pytest`
 
 ## Troubleshooting
 
-- `401 Unauthorized`: `X-API-KEY` mismatch between caller and bridge env.
-- `503 MT5 terminal not connected`: MT5 terminal closed/disconnected; restart terminal and bridge.
-- Empty `prices`: requested range not available on broker/timeframe.
-- Symbol errors: ensure ticker exists in `config/symbols.yaml` and symbol name exactly matches MT5 Market Watch.
+- `401 Unauthorized`: missing/invalid `X-API-KEY`.
+- `404`: unknown ticker/symbol mapping.
+- `422`: request validation failure.
+- `503`: MT5 unavailable or connection failure.
+- `success=false` on `/execute`: policy gate, slippage rejection, or overload protection triggered.

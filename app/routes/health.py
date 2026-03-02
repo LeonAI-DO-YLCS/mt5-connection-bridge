@@ -1,11 +1,10 @@
 """
 MT5 Bridge — GET /health endpoint.
-
-Returns the terminal connection status, broker session validity, and latency.
 """
 
 from __future__ import annotations
 
+import asyncio
 import time
 
 from fastapi import APIRouter
@@ -18,12 +17,6 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health", response_model=HealthStatus)
 async def health_check() -> HealthStatus:
-    """Report MT5 terminal connection status.
-
-    Always returns 200 — even if the terminal is disconnected —
-    so that upstream readiness probes can differentiate between
-    "bridge is up but MT5 is down" vs "bridge is down".
-    """
     state = get_state()
 
     if state not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
@@ -51,11 +44,9 @@ async def health_check() -> HealthStatus:
 
 
 async def _get_account_info():
-    """Submit ``mt5.account_info()`` to the worker queue."""
-    import asyncio
-
     def _call():
         import MetaTrader5 as mt5  # type: ignore[import-untyped]
+
         return mt5.account_info()
 
     loop = asyncio.get_running_loop()
