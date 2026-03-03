@@ -15,6 +15,8 @@ class TradeRequest(BaseModel):
     quantity: float = Field(..., gt=0, description="Desired quantity (will be normalized to lot size)")
     current_price: float = Field(..., gt=0, description="Current market price for slippage protection")
     multi_trade_mode: bool = Field(default=False, description="Allow parallel execution submissions")
+    sl: float | None = Field(default=None, description="Optional stop loss price")
+    tp: float | None = Field(default=None, description="Optional take profit price")
 
 
 class TradeResponse(BaseModel):

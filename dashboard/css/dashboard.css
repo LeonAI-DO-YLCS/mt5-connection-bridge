@@ -8,6 +8,12 @@
   --warn: #ffcb6b;
   --danger: #ff6b6b;
   --ok: #58e6a9;
+  --bg-color: var(--panel);
+  --border-color: rgba(255, 255, 255, 0.16);
+  --success-color: var(--ok);
+  --danger-color: var(--danger);
+  --text-color: var(--text);
+  --primary-color: var(--accent);
 }
 
 * {
@@ -125,6 +131,26 @@ td {
   color: var(--warn);
 }
 
+.connection-banner {
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 203, 107, 0.15);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.freshness-badge {
+  margin: 0.2rem 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.freshness-badge.stale {
+  color: var(--warn);
+}
+
 .ok {
   color: var(--ok);
 }
@@ -137,4 +163,144 @@ td {
   .tab-danger {
     margin-left: 0;
   }
+}
+
+/* US3 Dashboard UI Styles */
+
+.btn {
+  border: none;
+  border-radius: 4px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  background: var(--panel);
+  color: var(--text);
+  transition: opacity 0.2s;
+}
+
+.btn:hover {
+  opacity: 0.8;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: var(--muted);
+  color: #000;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
+}
+
+.mt-4 {
+  margin-top: 1rem;
+}
+
+.p-2 {
+  padding: 0.5rem;
+}
+
+.bg-gray-100 {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.rounded {
+  border-radius: 4px;
+}
+
+.text-green {
+  color: var(--ok);
+}
+
+.text-red {
+  color: var(--danger);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.w-full {
+  width: 100%;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.mod-pos-form label,
+.mod-ord-form label {
+  display: inline-block;
+  min-width: 90px;
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+.mod-pos-form input,
+.mod-ord-form input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  width: 100%;
+  max-width: 150px;
+}
+
+/* Simple animation for expandable inline forms */
+.mod-pos-form,
+.mod-ord-form {
+  transition: all 0.3s ease;
+}
+
+.mod-pos-form.hidden,
+.mod-ord-form.hidden {
+  display: none;
+}
+
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.confirm-modal {
+  width: min(460px, 90vw);
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.confirm-checkbox {
+  display: block;
+  margin-top: 0.8rem;
+  color: var(--muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
 }

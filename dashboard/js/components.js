@@ -4,8 +4,13 @@ function valueOrDash(value) {
   return value ?? "-";
 }
 
-export function renderStatus(contentEl, health, worker, metrics) {
-  contentEl.innerHTML = `
+export function renderStatus(contentEl, health, worker, metrics, account, terminal, config) {
+  const executionEnabled = Boolean(config?.execution_enabled);
+  const execClass = executionEnabled ? "ok" : "warn";
+  const execLabel = executionEnabled ? "ENABLED" : "DISABLED";
+  const toggleLabel = executionEnabled ? "Disable Execution" : "Enable Execution";
+
+  let html = `
     <div class="grid two">
       <article class="card"><h3>Health</h3>
         <p><strong>Connected:</strong> ${health.connected}</p>
@@ -22,8 +27,40 @@ export function renderStatus(contentEl, health, worker, metrics) {
         <p><strong>Errors:</strong> ${metrics.errors_count}</p>
         <p><strong>Retention:</strong> ${metrics.retention_days} days</p>
       </article>
-    </div>
+      <article class="card"><h3>Execution Policy</h3>
+        <p><strong>Status:</strong> <span class="${execClass}">${execLabel}</span></p>
+        <button id="executionToggleBtn" class="btn btn-sm ${executionEnabled ? "btn-danger" : "btn-primary"}">${toggleLabel}</button>
+      </article>
   `;
+
+  if (account) {
+    html += `
+      <article class="card"><h3>Account Summary</h3>
+        <p><strong>Balance:</strong> ${account.balance} ${account.currency || ""}</p>
+        <p><strong>Equity:</strong> ${account.equity} ${account.currency || ""}</p>
+        <p><strong>Margin:</strong> ${account.margin} ${account.currency || ""}</p>
+        <p><strong>Free Margin:</strong> ${account.free_margin} ${account.currency || ""}</p>
+        <p><strong>Profit:</strong> ${account.profit} ${account.currency || ""}</p>
+        <p><strong>Leverage:</strong> 1:${account.leverage}</p>
+      </article>
+    `;
+  }
+
+  if (terminal) {
+    html += `
+      <article class="card"><h3>Terminal Diagnostics</h3>
+        <p><strong>Name:</strong> ${terminal.name}</p>
+        <p><strong>Build:</strong> ${terminal.build}</p>
+        <p><strong>Connected:</strong> ${terminal.connected}</p>
+        <p><strong>Trade Allowed:</strong> ${terminal.trade_allowed}</p>
+        <p><strong>Path:</strong> ${terminal.path}</p>
+        <p><strong>Data Path:</strong> ${terminal.data_path}</p>
+      </article>
+    `;
+  }
+
+  html += `</div>`;
+  contentEl.innerHTML = html;
 }
 
 export function renderSymbols(contentEl, symbols) {
@@ -82,35 +119,7 @@ export function renderPrices(contentEl, payload) {
   });
 }
 
-export function renderExecute(contentEl, config) {
-  const disabled = config.execution_enabled ? "" : "disabled";
-  const blockMessage = config.execution_enabled
-    ? "Execution enabled by policy."
-    : "Execution is disabled by policy (EXECUTION_ENABLED=false).";
 
-  contentEl.innerHTML = `
-    <h3>Execute Trade</h3>
-    <p class="small">${blockMessage}</p>
-    <label><input id="multiTradeMode" type="checkbox"> Enable multi-trade mode</label>
-    <p id="multiTradeWarning" class="small warn hidden">Warning: multi-trade mode increases risk and can submit parallel orders.</p>
-
-    <div class="grid two">
-      <input id="execTicker" placeholder="Ticker" value="V75" />
-      <select id="execAction">
-        <option value="buy">buy</option>
-        <option value="sell">sell</option>
-        <option value="short">short</option>
-        <option value="cover">cover</option>
-      </select>
-      <input id="execQty" placeholder="Quantity" type="number" step="0.01" value="0.01" />
-      <input id="execPrice" placeholder="Current price" type="number" step="0.01" value="1000" />
-    </div>
-
-    <label><input id="confirmLive" type="checkbox" /> I confirm I understand live-trade risk.</label>
-    <button id="submitTrade" ${disabled}>Submit Trade</button>
-    <pre id="executeResult" class="card small"></pre>
-  `;
-}
 
 export function renderLogs(contentEl, logs) {
   const rows = logs.entries
