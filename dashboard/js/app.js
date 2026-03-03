@@ -10,6 +10,7 @@ import { renderPositions } from "./positions.js";
 import { renderOrders } from "./orders.js";
 import { renderHistory } from "./history.js";
 import { renderBrokerSymbols } from "./symbols-browser.js";
+import { showEnvelope, showError } from "./message-renderer.js";
 
 const API_KEY_STORAGE = "mt5_bridge_api_key";
 
@@ -95,7 +96,10 @@ export async function api(path, options = {}) {
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(JSON.stringify(body.detail || body));
+    // Attach full envelope body to the error for downstream rendering
+    const err = new Error(JSON.stringify(body.detail || body));
+    err.envelope = (body && body.tracking_id) ? body : null;
+    throw err;
   }
   return body;
 }
@@ -135,7 +139,7 @@ async function loadTab(tabName) {
           envBadge.textContent = updatedConfig.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
           await doLoad();
         } catch (err) {
-          alert(`Failed to update execution policy: ${err.message}`);
+          showEnvelope(err.envelope || err);
         } finally {
           btn.disabled = false;
         }
