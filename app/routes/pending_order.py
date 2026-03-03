@@ -2,7 +2,10 @@ import asyncio
 import logging
 import threading
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
+
+from ..messaging.codes import ErrorCode
+from ..messaging.envelope import MessageEnvelopeException
 
 from ..audit import log_trade
 from ..main import settings, symbol_map
@@ -41,7 +44,11 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
     if not settings.execution_enabled:
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false).")
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=response.error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=ErrorCode.EXECUTION_DISABLED,
+            message="Execution disabled by policy (EXECUTION_ENABLED=false).",
+        )
 
     # Resolve MT5 symbol — either via YAML alias or direct name (dashboard bypass)
     if req.mt5_symbol_direct:
@@ -51,19 +58,29 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
     else:
         response = TradeResponse(success=False, error=f"Unknown ticker '{req.ticker}'")
         log_trade(req, response, metadata={"state": "blocked_unknown_symbol"})
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code=ErrorCode.SYMBOL_NOT_CONFIGURED,
+            message=f"Unknown ticker '{req.ticker}'",
+            context={"ticker": req.ticker},
+        )
 
     gate_error = _acquire_single_flight()
     if gate_error:
         response = TradeResponse(success=False, error=gate_error)
         log_trade(req, response, metadata={"state": "blocked_overload_or_single_flight"})
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=response.error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_409_CONFLICT,
+            code=ErrorCode.OVERLOAD_OR_SINGLE_FLIGHT,
+            message=gate_error,
+        )
 
     try:
         if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
-            raise HTTPException(
+            raise MessageEnvelopeException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="MT5 terminal not connected",
+                code=ErrorCode.MT5_DISCONNECTED,
+                message="MT5 terminal not connected",
             )
 
         mt5_symbol_resolved = mt5_symbol
@@ -125,24 +142,41 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
             if response.success:
                 return response
             if trade_state == "trade_mode_rejected":
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=response.error)
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    code=ErrorCode.SYMBOL_TRADE_MODE_RESTRICTED,
+                    message=response.error or "Trade mode restriction",
+                )
             if trade_state in {"invalid_params"}:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=response.error)
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    code=ErrorCode.VALIDATION_ERROR,
+                    message=response.error or "Invalid order parameters",
+                )
             if trade_state in {"symbol_missing"}:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
-            raise HTTPException(
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    code=ErrorCode.SYMBOL_NOT_CONFIGURED,
+                    message=response.error or "Symbol info unavailable",
+                )
+            raise MessageEnvelopeException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=response.error or "Pending order request failed",
+                code=ErrorCode.REQUEST_REJECTED,
+                message=response.error or "Pending order request failed",
             )
         except ConnectionError:
             response = TradeResponse(success=False, error="Not connected to MT5")
             log_trade(req, response, metadata={"state": "connection_error"})
-            raise HTTPException(status_code=503, detail="Not connected to MT5")
-        except HTTPException:
+            raise MessageEnvelopeException(
+                status_code=503,
+                code=ErrorCode.MT5_DISCONNECTED,
+                message="Not connected to MT5",
+            )
+        except MessageEnvelopeException:
             raise
         except Exception as e:
             response = TradeResponse(success=False, error=str(e))
             log_trade(req, response, metadata={"state": "internal_error"})
-            raise HTTPException(status_code=500, detail=str(e))
+            raise
     finally:
         _release_single_flight()

@@ -1,4 +1,5 @@
 import { api } from "./app.js";
+import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
 
 function showDangerCheckboxModal({ title, message, checkboxLabel, confirmLabel }) {
   return new Promise((resolve) => {
@@ -186,7 +187,7 @@ export function renderPositions(contentEl, payload, accountPayload) {
         return;
       }
       if (parsed.error) {
-        alert(parsed.error);
+        showError(parsed.error);
         target.disabled = false;
         return;
       }
@@ -202,10 +203,10 @@ export function renderPositions(contentEl, payload, accountPayload) {
 
       try {
         await closePositionByTicket(ticket, parsed.volume);
-        alert(`Close request accepted for position ${ticket}`);
+        showSuccess(`Close request accepted for position ${ticket}`);
       } catch (err) {
         if (!isGuardedDuplicateError(err)) {
-          alert(`Failed to close position: ${err.message}`);
+          showEnvelope(err.envelope || err);
         }
       } finally {
         target.disabled = false;
@@ -241,7 +242,7 @@ export function renderPositions(contentEl, payload, accountPayload) {
       }
     }
     closeAllBtn.disabled = false;
-    alert(`Close-all completed. Success: ${successCount}/${positions.length}`);
+    showSuccess(`Close-all completed. Success: ${successCount}/${positions.length}`);
   });
 
   contentEl.querySelectorAll(".toggle-mod-pos-btn").forEach((btn) => {
@@ -266,9 +267,9 @@ export function renderPositions(contentEl, payload, accountPayload) {
             tp: Number.isFinite(tpVal) && tpVal > 0 ? tpVal : null,
           }),
         });
-        alert(`Successfully modified position ${ticket}`);
+        showSuccess(`Successfully modified position ${ticket}`);
       } catch (err) {
-        alert(`Failed to modify position: ${err.message}`);
+        showEnvelope(err.envelope || err);
       }
     });
   });

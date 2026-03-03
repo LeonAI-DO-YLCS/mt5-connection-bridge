@@ -1,7 +1,10 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
+
+from ..messaging.codes import ErrorCode
+from ..messaging.envelope import MessageEnvelopeException
 
 from ..audit import log_task_event
 from ..main import symbol_map
@@ -27,7 +30,12 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
             status_code=404,
             details={"reason": "unknown_ticker"},
         )
-        raise HTTPException(status_code=404, detail=f"Unknown ticker '{req.ticker}'")
+        raise MessageEnvelopeException(
+            status_code=404,
+            code=ErrorCode.SYMBOL_NOT_CONFIGURED,
+            message=f"Unknown ticker '{req.ticker}'",
+            context={"ticker": req.ticker},
+        )
 
     if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
         log_task_event(
@@ -37,9 +45,10 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
             status_code=503,
             details={"reason": "mt5_disconnected"},
         )
-        raise HTTPException(
+        raise MessageEnvelopeException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="MT5 terminal not connected",
+            code=ErrorCode.MT5_DISCONNECTED,
+            message="MT5 terminal not connected",
         )
 
     def _execute_check() -> OrderCheckResponse:
@@ -115,7 +124,13 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
             status_code=503,
             details={"reason": "connection_error"},
         )
-        raise HTTPException(status_code=503, detail="Not connected to MT5")
+        raise MessageEnvelopeException(
+            status_code=503,
+            code=ErrorCode.MT5_DISCONNECTED,
+            message="Not connected to MT5",
+        )
+    except MessageEnvelopeException:
+        raise
     except Exception as e:
         log_task_event(
             "order_check",
@@ -124,4 +139,4 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
             status_code=500,
             details={"reason": str(e)},
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise

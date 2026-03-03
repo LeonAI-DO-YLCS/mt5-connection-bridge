@@ -1,4 +1,5 @@
 import { api } from "./app.js";
+import { showEnvelope, showSuccess } from "./message-renderer.js";
 
 function isGuardedDuplicateError(err) {
   const message = String(err?.message || "");
@@ -120,10 +121,10 @@ export function renderOrders(contentEl, payload) {
       target.disabled = true;
       try {
         await cancelOrderByTicket(ticket);
-        alert(`Successfully cancelled order ${ticket}`);
+        showSuccess(`Successfully cancelled order ${ticket}`);
       } catch (err) {
         if (!isGuardedDuplicateError(err)) {
-          alert(`Failed to cancel order: ${err.message}`);
+          showEnvelope(err.envelope || err);
         }
       } finally {
         target.disabled = false;
@@ -159,7 +160,7 @@ export function renderOrders(contentEl, payload) {
       }
     }
     cancelAllBtn.disabled = false;
-    alert(`Cancel-all completed. Success: ${successCount}/${orders.length}`);
+    showSuccess(`Cancel-all completed. Success: ${successCount}/${orders.length}`);
   });
 
   contentEl.querySelectorAll(".toggle-mod-ord-btn").forEach((btn) => {
@@ -186,9 +187,9 @@ export function renderOrders(contentEl, payload) {
             tp: Number.isFinite(tpVal) && tpVal > 0 ? tpVal : null,
           }),
         });
-        alert(`Successfully modified order ${ticket}`);
+        showSuccess(`Successfully modified order ${ticket}`);
       } catch (err) {
-        alert(`Failed to modify order: ${err.message}`);
+        showEnvelope(err.envelope || err);
       }
     });
   });
