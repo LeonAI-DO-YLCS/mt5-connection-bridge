@@ -15,3 +15,10 @@ class PendingOrderRequest(BaseModel):
     sl: float | None = Field(default=None, description="Optional stop loss price")
     tp: float | None = Field(default=None, description="Optional take profit price")
     comment: str = Field(default="", description="Optional comment for the order")
+    mt5_symbol_direct: str | None = Field(
+        default=None,
+        description=(
+            "Optional raw MT5 symbol name. When set, bypasses the YAML symbol_map lookup. "
+            "Used by dashboard workflows for symbols not present in symbols.yaml."
+        ),
+    )

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from ..audit import log_trade
 from ..main import settings, symbol_map
-from ..mappers.trade_mapper import build_pending_order_request
+from ..mappers.trade_mapper import build_pending_order_request, validate_trade_mode
 from ..models.pending_order import PendingOrderRequest
 from ..models.trade import TradeResponse
 from ..mt5_worker import WorkerState, get_queue_depth, get_state, submit
@@ -43,12 +43,15 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=response.error)
 
-    if req.ticker not in symbol_map:
+    # Resolve MT5 symbol — either via YAML alias or direct name (dashboard bypass)
+    if req.mt5_symbol_direct:
+        mt5_symbol = req.mt5_symbol_direct.strip()
+    elif req.ticker in symbol_map:
+        mt5_symbol = symbol_map[req.ticker].mt5_symbol
+    else:
         response = TradeResponse(success=False, error=f"Unknown ticker '{req.ticker}'")
         log_trade(req, response, metadata={"state": "blocked_unknown_symbol"})
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
-
-    mt5_symbol = symbol_map[req.ticker].mt5_symbol
 
     gate_error = _acquire_single_flight()
     if gate_error:
@@ -63,15 +66,24 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
                 detail="MT5 terminal not connected",
             )
 
+        mt5_symbol_resolved = mt5_symbol
+
         def _execute_in_worker() -> tuple[TradeResponse, str]:
             import MetaTrader5 as mt5  # type: ignore[import-untyped]
-            
-            symbol_info = mt5.symbol_info(mt5_symbol)
+
+            symbol_info = mt5.symbol_info(mt5_symbol_resolved)
             if symbol_info is None:
-                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol}"), "symbol_missing"
+                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol_resolved}"), "symbol_missing"
+
+            # T017: Trade mode enforcement for pending orders
+            # Map pending order type to buy/sell direction for validation
+            pending_direction = "buy" if req.type in ("buy_limit", "buy_stop") else "sell"
+            trade_mode_error = validate_trade_mode(symbol_info, pending_direction)
+            if trade_mode_error:
+                return TradeResponse(success=False, error=trade_mode_error), "trade_mode_rejected"
 
             try:
-                request_dict = build_pending_order_request(req, mt5_symbol, symbol_info)
+                request_dict = build_pending_order_request(req, mt5_symbol_resolved, symbol_info)
             except Exception as e:
                 return TradeResponse(success=False, error=f"Invalid order parameters: {str(e)}"), "invalid_params"
 
@@ -112,6 +124,8 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
             logger.info("MT5 pending order result: %s", response.model_dump())
             if response.success:
                 return response
+            if trade_state == "trade_mode_rejected":
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=response.error)
             if trade_state in {"invalid_params"}:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=response.error)
             if trade_state in {"symbol_missing"}:

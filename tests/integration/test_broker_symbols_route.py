@@ -34,7 +34,7 @@ def test_broker_symbols_success(client, auth_headers, mock_mt5_submit, mock_get_
         digits=2,
         volume_min=0.01,
         volume_max=100.0,
-        trade_mode="4",
+        trade_mode=4,
         is_configured=True
     )
     s2 = BrokerSymbol(
@@ -45,7 +45,7 @@ def test_broker_symbols_success(client, auth_headers, mock_mt5_submit, mock_get_
         digits=5,
         volume_min=0.01,
         volume_max=100.0,
-        trade_mode="0",
+        trade_mode=0,
         is_configured=False
     )
     
@@ -75,7 +75,7 @@ def test_broker_symbols_group_filter(client, auth_headers, mock_mt5_submit, mock
         digits=5,
         volume_min=0.01,
         volume_max=100.0,
-        trade_mode="0",
+        trade_mode=0,
         is_configured=False
     )
     
@@ -124,4 +124,5 @@ def test_broker_symbols_maps_trade_mode_to_human_label(
             assert response.status_code == 200
             data = response.json()
             assert data["count"] == 1
-            assert data["symbols"][0]["trade_mode"] == "Full"
+            assert data["symbols"][0]["trade_mode"] == 4  # int (Full)
+            assert data["symbols"][0]["trade_mode_label"] == "Full"

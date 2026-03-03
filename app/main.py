@@ -153,6 +153,7 @@ from .routes.close_position import router as close_position_router  # noqa: E402
 from .routes.pending_order import router as pending_order_router  # noqa: E402
 from .routes.order_check import router as order_check_router  # noqa: E402
 from .routes.broker_symbols import router as broker_symbols_router  # noqa: E402
+from .routes.broker_capabilities import router as broker_capabilities_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(prices_router)
@@ -173,6 +174,7 @@ app.include_router(close_position_router)
 app.include_router(pending_order_router)
 app.include_router(order_check_router)
 app.include_router(broker_symbols_router)
+app.include_router(broker_capabilities_router)
 
 _dashboard_dir = Path(__file__).resolve().parent.parent / "dashboard"
 if _dashboard_dir.exists():

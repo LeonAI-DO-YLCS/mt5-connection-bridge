@@ -144,17 +144,18 @@ async function loadTab(tabName) {
 
     const doLoad = async () => {
       try {
-        const [health, worker, metrics, account, terminal, config] = await Promise.all([
+        const [health, worker, metrics, account, terminal, config, capabilities] = await Promise.all([
           api("/health"),
           api("/worker/state"),
           api("/metrics"),
           api("/account").catch(() => null),
           api("/terminal").catch(() => null),
           api("/config"),
+          api("/broker-capabilities").catch(() => null),
         ]);
-        cacheTabData("status", { health, worker, metrics, account, terminal, config });
+        cacheTabData("status", { health, worker, metrics, account, terminal, config, capabilities });
         setConnectionBanner(false);
-        renderStatus(tabContent, health, worker, metrics, account, terminal, config);
+        renderStatus(tabContent, health, worker, metrics, account, terminal, config, capabilities);
         envBadge.textContent = config.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
         wireExecutionToggle(doLoad, Boolean(config.execution_enabled));
         renderFreshness("status", false);
@@ -172,6 +173,7 @@ async function loadTab(tabName) {
           cached.data.account,
           cached.data.terminal,
           cached.data.config,
+          cached.data.capabilities,
         );
         envBadge.textContent = cached.data.config?.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
         wireExecutionToggle(doLoad, Boolean(cached.data.config?.execution_enabled));
@@ -235,11 +237,10 @@ async function loadTab(tabName) {
   if (tabName === "symbols") {
     try {
       const data = await api("/symbols");
-      const brokerData = await api("/broker-symbols");
-      cacheTabData("symbols", { data, brokerData });
+      cacheTabData("symbols", { data });
       setConnectionBanner(false);
       renderSymbols(tabContent, data.symbols || []);
-      renderBrokerSymbols(tabContent, brokerData);
+      await renderBrokerSymbols(tabContent).catch(() => {});
       renderFreshness("symbols", false);
     } catch (err) {
       const cached = getCachedTabData("symbols");
@@ -248,35 +249,67 @@ async function loadTab(tabName) {
       }
       setConnectionBanner(true);
       renderSymbols(tabContent, cached.data.data.symbols || []);
-      renderBrokerSymbols(tabContent, cached.data.brokerData);
+      await renderBrokerSymbols(tabContent).catch(() => {});
       renderFreshness("symbols", true);
     }
     return;
   }
 
   if (tabName === "prices") {
-    const symbolsResp = await api("/symbols");
-    const symbols = symbolsResp.symbols || [];
-    const options = symbols
-      .map((s) => `<option value="${s.ticker}">${s.ticker}</option>`)
-      .join("");
+    const capResp = await api("/broker-capabilities").catch(() => ({ symbols: [], categories: {} }));
+    const capCategories = capResp.categories || {};
+
+    let optionsHtml = "";
+    for (const [cat, subs] of Object.entries(capCategories).sort()) {
+      const catSyms = (capResp.symbols || []).filter((s) => s.category === cat);
+      if (catSyms.length === 0) continue;
+      optionsHtml += `<optgroup label="${cat}">`;
+      for (const sym of catSyms) {
+        optionsHtml += `<option value="${sym.name}">${sym.name} — ${sym.description.slice(0, 40)}</option>`;
+      }
+      optionsHtml += `</optgroup>`;
+    }
 
     tabContent.innerHTML = `
       <h3>Live Prices</h3>
-      <div class="card" style="max-width: 520px;">
-        <label for="priceTicker"><strong>Ticker</strong></label>
-        <select id="priceTicker" class="mt-2">${options}</select>
-        <div id="priceSnapshot" class="mt-4 small">Select a ticker to load current price.</div>
+      <div class="card" style="max-width: 560px;">
+        <label for="priceSearch"><strong>Search:</strong></label>
+        <input type="text" id="priceSearch" placeholder="Filter symbols…" class="mt-1" style="width:100%;" />
+        <label for="priceTicker" style="margin-top:8px;display:block;"><strong>Symbol</strong></label>
+        <select id="priceTicker" class="mt-2" size="1">${optionsHtml}</select>
+        <div id="priceSnapshot" class="mt-4 small">Select a symbol to load current price.</div>
       </div>
     `;
 
     const tickerEl = document.getElementById("priceTicker");
+    const priceSearchEl = document.getElementById("priceSearch");
     const snapshotEl = document.getElementById("priceSnapshot");
+
+    priceSearchEl?.addEventListener("input", () => {
+      const q = priceSearchEl.value.toLowerCase();
+      tickerEl.innerHTML = "";
+      for (const [cat, subs] of Object.entries(capCategories).sort()) {
+        const catSyms = (capResp.symbols || []).filter(
+          (s) => s.category === cat && (s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+        );
+        if (catSyms.length > 0) {
+          const og = document.createElement("optgroup");
+          og.label = cat;
+          catSyms.forEach((sym) => {
+            const opt = document.createElement("option");
+            opt.value = sym.name;
+            opt.textContent = `${sym.name} — ${sym.description.slice(0, 40)}`;
+            og.appendChild(opt);
+          });
+          tickerEl.appendChild(og);
+        }
+      }
+    });
 
     const refreshTick = async () => {
       const ticker = tickerEl?.value;
       if (!ticker) {
-        snapshotEl.textContent = "No ticker selected.";
+        snapshotEl.textContent = "No symbol selected.";
         return;
       }
       try {
@@ -284,7 +317,7 @@ async function loadTab(tabName) {
         cacheTabData("prices", { tick, ticker });
         setConnectionBanner(false);
         snapshotEl.innerHTML = `
-          <p><strong>Ticker:</strong> ${tick.ticker}</p>
+          <p><strong>Symbol:</strong> ${tick.ticker}</p>
           <p><strong>Bid:</strong> ${tick.bid}</p>
           <p><strong>Ask:</strong> ${tick.ask}</p>
           <p><strong>Spread:</strong> ${tick.spread}</p>
@@ -297,7 +330,7 @@ async function loadTab(tabName) {
           setConnectionBanner(true);
           const tick = cached.data.tick;
           snapshotEl.innerHTML = `
-            <p><strong>Ticker:</strong> ${tick.ticker}</p>
+            <p><strong>Symbol:</strong> ${tick.ticker}</p>
             <p><strong>Bid:</strong> ${tick.bid}</p>
             <p><strong>Ask:</strong> ${tick.ask}</p>
             <p><strong>Spread:</strong> ${tick.spread}</p>

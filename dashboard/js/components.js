@@ -4,13 +4,42 @@ function valueOrDash(value) {
   return value ?? "-";
 }
 
-export function renderStatus(contentEl, health, worker, metrics, account, terminal, config) {
+function renderCapabilityPanel(capabilities) {
+  if (!capabilities) {
+    return "";
+  }
+  const terminalOk = Boolean(capabilities.terminal_trade_allowed);
+  const accountOk = Boolean(capabilities.account_trade_allowed);
+  const executionPolicyActive = terminalOk && accountOk;
+  const flag = (value) => (value ? "✅" : "❌");
+  const cls = (value) => (value ? "ok" : "warn");
+
+  return `
+    <article class="card">
+      <h3>Broker Capabilities</h3>
+      <p><strong>Terminal Trade Allowed:</strong> <span class="${cls(terminalOk)}">${flag(terminalOk)} ${terminalOk}</span></p>
+      <p><strong>Account Trade Allowed:</strong> <span class="${cls(accountOk)}">${flag(accountOk)} ${accountOk}</span></p>
+      <p><strong>Execution Policy Active:</strong> <span class="${cls(executionPolicyActive)}">${flag(executionPolicyActive)} ${executionPolicyActive}</span></p>
+      <p><strong>Symbol Count:</strong> ${valueOrDash(capabilities.symbol_count)}</p>
+      <p><strong>Fetched At:</strong> ${valueOrDash(capabilities.fetched_at)}</p>
+    </article>
+  `;
+}
+
+export function renderStatus(contentEl, health, worker, metrics, account, terminal, config, capabilities) {
   const executionEnabled = Boolean(config?.execution_enabled);
   const execClass = executionEnabled ? "ok" : "warn";
   const execLabel = executionEnabled ? "ENABLED" : "DISABLED";
   const toggleLabel = executionEnabled ? "Disable Execution" : "Enable Execution";
+  const terminalTradeAllowed = Boolean(capabilities?.terminal_trade_allowed ?? true);
+  const accountTradeAllowed = Boolean(capabilities?.account_trade_allowed ?? true);
 
   let html = `
+    ${(!terminalTradeAllowed || !accountTradeAllowed) ? `
+      <div class="warning-banner" style="margin-bottom:12px;padding:10px;border-radius:6px;background:#dc354522;border:1px solid #dc3545;color:#dc3545;">
+        ⚠️ ${!terminalTradeAllowed ? "Terminal trading is not allowed." : ""} ${!accountTradeAllowed ? "Account trading is not allowed." : ""}
+      </div>
+    ` : ""}
     <div class="grid two">
       <article class="card"><h3>Health</h3>
         <p><strong>Connected:</strong> ${health.connected}</p>
@@ -59,6 +88,7 @@ export function renderStatus(contentEl, health, worker, metrics, account, termin
     `;
   }
 
+  html += renderCapabilityPanel(capabilities);
   html += `</div>`;
   contentEl.innerHTML = html;
 }

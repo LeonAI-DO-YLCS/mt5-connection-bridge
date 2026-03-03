@@ -53,6 +53,8 @@ Key feature flags:
 - `MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD=100`
 - `MAX_PRE_DISPATCH_SLIPPAGE_PCT=1.0`
 - `MAX_POST_FILL_SLIPPAGE_PCT=1.0`
+- `CAPABILITIES_CACHE_TTL_SECONDS=60` (TTL for live broker capabilities snapshot)
+- `AUTO_SELECT_SYMBOLS=true` (auto-select MT5 symbols in Market Watch for direct symbol flows)
 
 ## Run
 
@@ -145,6 +147,8 @@ X-API-KEY: <MT5_BRIDGE_API_KEY>
 ### Additive operational routes
 
 - `GET /symbols`
+- `GET /broker-capabilities`
+- `POST /broker-capabilities/refresh`
 - `GET /logs?limit=&offset=`
 - `GET /config`
 - `GET /worker/state`
@@ -168,6 +172,8 @@ Execution tab safety controls:
 - Multi-trade toggle with warning
 - Single-flight blocking when multi-trade is off
 - Queue overload rejection based on `MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD`
+- Per-symbol trade-mode guardrails (long-only/short-only/close-only/disabled)
+- `mt5_symbol_direct` routing so dashboard can execute broker-native symbols without YAML aliases
 
 ## Testing
 

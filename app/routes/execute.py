@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from ..audit import log_trade
 from ..main import settings, symbol_map
-from ..mappers.trade_mapper import action_to_mt5_order_type, build_order_request, normalize_lot_size
+from ..mappers.trade_mapper import action_to_mt5_order_type, build_order_request, normalize_lot_size, validate_trade_mode
 from ..models.trade import TradeRequest, TradeResponse
 from ..mt5_worker import WorkerState, get_queue_depth, get_state, submit
 
@@ -53,7 +53,12 @@ def _release_single_flight() -> None:
 
 @router.post("/execute", response_model=TradeResponse)
 async def execute_trade(req: TradeRequest) -> TradeResponse:
-    if req.ticker not in symbol_map:
+    # Resolve MT5 symbol — either via YAML alias or direct name (dashboard bypass)
+    if req.mt5_symbol_direct:
+        mt5_symbol = req.mt5_symbol_direct.strip()
+    elif req.ticker in symbol_map:
+        mt5_symbol = symbol_map[req.ticker].mt5_symbol
+    else:
         response = TradeResponse(success=False, error=f"Unknown ticker: {req.ticker}")
         log_trade(req, response, metadata={"state": "blocked_unknown_ticker"})
         raise HTTPException(
@@ -89,22 +94,27 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
                 detail="MT5 terminal not connected",
             )
 
-        mt5_symbol = symbol_map[req.ticker].mt5_symbol
+        mt5_symbol_resolved = mt5_symbol  # resolved above (YAML alias or mt5_symbol_direct)
 
         def _execute_in_worker() -> tuple[TradeResponse, str]:
             import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
-            symbol_info = mt5.symbol_info(mt5_symbol)
+            symbol_info = mt5.symbol_info(mt5_symbol_resolved)
             if symbol_info is None:
-                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol}"), "symbol_missing"
+                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol_resolved}"), "symbol_missing"
 
-            if not symbol_info.visible and not mt5.symbol_select(mt5_symbol, True):
+            # T016: Trade mode enforcement — validate BEFORE touching the broker
+            trade_mode_error = validate_trade_mode(symbol_info, req.action)
+            if trade_mode_error:
+                return TradeResponse(success=False, error=trade_mode_error), "trade_mode_rejected"
+
+            if not symbol_info.visible and not mt5.symbol_select(mt5_symbol_resolved, True):
                 return (
-                    TradeResponse(success=False, error=f"Failed to select symbol {mt5_symbol} in Market Watch"),
+                    TradeResponse(success=False, error=f"Failed to select symbol {mt5_symbol_resolved} in Market Watch"),
                     "symbol_not_selectable",
                 )
 
-            tick = mt5.symbol_info_tick(mt5_symbol)
+            tick = mt5.symbol_info_tick(mt5_symbol_resolved)
             if tick is not None:
                 market_price = float(getattr(tick, "ask", 0.0) or 0.0)
                 if req.action in ("sell", "short"):
@@ -128,7 +138,7 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
             except ValueError as exc:
                 return TradeResponse(success=False, error=str(exc)), "invalid_lot"
 
-            order_request = build_order_request(req, mt5_symbol, symbol_info)
+            order_request = build_order_request(req, mt5_symbol_resolved, symbol_info)
             order_request["volume"] = normalized_qty
             logger.info("Submitting MT5 order: %s", order_request)
 
@@ -181,6 +191,11 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
         response, trade_state = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
         log_trade(req, response, metadata={"state": trade_state})
         logger.info("MT5 order result: %s", response.model_dump())
+        if not response.success and trade_state == "trade_mode_rejected":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=response.error,
+            )
         return response
     except ConnectionError as exc:
         response = TradeResponse(success=False, error=str(exc))
