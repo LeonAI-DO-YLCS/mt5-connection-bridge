@@ -25,9 +25,9 @@
 
 **Purpose**: Create the messaging module package and shared dependencies
 
-- [ ] T001 Create messaging module package with `app/messaging/__init__.py`
-- [ ] T002 [P] Define `ErrorCode` enum with all 18 codes and metadata (domain, default_title, default_message, default_action, default_severity, default_retryable, default_http_status, category) in `app/messaging/codes.py`
-- [ ] T003 [P] Implement `generate_tracking_id()` returning `brg-<YYYYMMDDTHHMMSS>-<hex4>` format string using `datetime.now(UTC)` + `secrets.token_hex(2)` in `app/messaging/tracking.py`
+- [x] T001 Create messaging module package with `app/messaging/__init__.py`
+- [x] T002 [P] Define `ErrorCode` enum with all 18 codes and metadata (domain, default_title, default_message, default_action, default_severity, default_retryable, default_http_status, category) in `app/messaging/codes.py`
+- [x] T003 [P] Implement `generate_tracking_id()` returning `brg-<YYYYMMDDTHHMMSS>-<hex4>` format string using `datetime.now(UTC)` + `secrets.token_hex(2)` in `app/messaging/tracking.py`
 
 ---
 
@@ -37,10 +37,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create `MessageEnvelope` Pydantic v2 model with fields: `ok`, `category`, `code`, `tracking_id`, `title`, `message`, `action`, `severity`, `retryable`, `context`, `detail` (legacy compat), and optional `data` dict for trade-specific fields — in `app/messaging/envelope.py`
-- [ ] T005 Create `MessageEnvelopeException` as HTTPException subclass carrying a pre-built `MessageEnvelope`, with convenience constructor accepting `status_code`, `code` (ErrorCode enum), `message`, `action`, `context` — in `app/messaging/envelope.py`
-- [ ] T006 Implement `normalize_error(code, message, action, context, detail)` factory that builds a `MessageEnvelope` with `ok=False`, auto-generated `tracking_id`, and metadata defaults from the `ErrorCode` enum — in `app/messaging/normalizer.py`
-- [ ] T007 Implement `normalize_success(title, message, data)` factory that builds a `MessageEnvelope` with `ok=True`, `category=success`, `code=REQUEST_OK`, auto-generated `tracking_id` — in `app/messaging/normalizer.py`
+- [x] T004 Create `MessageEnvelope` Pydantic v2 model with fields: `ok`, `category`, `code`, `tracking_id`, `title`, `message`, `action`, `severity`, `retryable`, `context`, `detail` (legacy compat), and optional `data` dict for trade-specific fields — in `app/messaging/envelope.py`
+- [x] T005 Create `MessageEnvelopeException` as HTTPException subclass carrying a pre-built `MessageEnvelope`, with convenience constructor accepting `status_code`, `code` (ErrorCode enum), `message`, `action`, `context` — in `app/messaging/envelope.py`
+- [x] T006 Implement `normalize_error(code, message, action, context, detail)` factory that builds a `MessageEnvelope` with `ok=False`, auto-generated `tracking_id`, and metadata defaults from the `ErrorCode` enum — in `app/messaging/normalizer.py`
+- [x] T007 Implement `normalize_success(title, message, data)` factory that builds a `MessageEnvelope` with `ok=True`, `category=success`, `code=REQUEST_OK`, auto-generated `tracking_id` — in `app/messaging/normalizer.py`
 
 **Checkpoint**: Foundation ready — MessageEnvelope model, exception class, and normalizer are available for route integration
 
@@ -54,23 +54,23 @@
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Create unit tests for `MessageEnvelope` serialization, field constraints (title ≤ 80 chars), and `context` sanitization (rejects keys containing "password", "secret", "token") in `tests/unit/test_envelope.py`
-- [ ] T009 [P] [US1] Create unit tests for `ErrorCode` enum — all 18 members have required metadata, no duplicate codes, all domain prefixes valid — in `tests/unit/test_codes.py`
-- [ ] T010 [P] [US1] Create unit tests for `generate_tracking_id()` — format matches `brg-\d{8}T\d{6}-[0-9a-f]{4}`, length ≤ 30 chars, 100 consecutive calls produce unique values — in `tests/unit/test_tracking.py`
-- [ ] T011 [P] [US1] Create unit tests for `normalize_error()` and `normalize_success()` — produce valid envelopes with all required fields populated, correct defaults from ErrorCode — in `tests/unit/test_normalizer.py`
+- [x] T008 [P] [US1] Create unit tests for `MessageEnvelope` serialization, field constraints (title ≤ 80 chars), and `context` sanitization (rejects keys containing "password", "secret", "token") in `tests/unit/test_envelope.py`
+- [x] T009 [P] [US1] Create unit tests for `ErrorCode` enum — all 18 members have required metadata, no duplicate codes, all domain prefixes valid — in `tests/unit/test_codes.py`
+- [x] T010 [P] [US1] Create unit tests for `generate_tracking_id()` — format matches `brg-\d{8}T\d{6}-[0-9a-f]{4}`, length ≤ 30 chars, 100 consecutive calls produce unique values — in `tests/unit/test_tracking.py`
+- [x] T011 [P] [US1] Create unit tests for `normalize_error()` and `normalize_success()` — produce valid envelopes with all required fields populated, correct defaults from ErrorCode — in `tests/unit/test_normalizer.py`
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Register `MessageEnvelopeException` handler in `app/main.py` — serialize the carried envelope to JSON, set `X-Error-Code` header from `envelope.code`, set `X-Tracking-ID` header from `envelope.tracking_id`, log `tracking_id` and `code` as structured fields
-- [ ] T013 [US1] Modify `unhandled_exception_handler` in `app/main.py` to wrap the error with `normalize_error(code=INTERNAL_SERVER_ERROR, ...)` and return the canonical envelope JSON alongside legacy `detail` field
-- [ ] T014 [US1] Modify `http_exception_handler` in `app/main.py` to wrap errors with `normalize_error()` using the code from existing `_infer_error_code()`, set `X-Tracking-ID` header, and include both canonical envelope and legacy `detail` in response body
-- [ ] T015 [US1] Modify `request_validation_exception_handler` in `app/main.py` to wrap Pydantic errors with `normalize_error(code=VALIDATION_ERROR, ...)`, generating a human-readable `title` and `message` from the first validation error, preserving the Pydantic array in `detail`
-- [ ] T016 [US1] Refactor `/execute` endpoint in `app/routes/execute.py` — replace all `TradeResponse(success=False, error=...)` failure returns with `raise MessageEnvelopeException(...)` using the appropriate `ErrorCode` for each case: `SYMBOL_NOT_CONFIGURED` (unknown ticker), `VALIDATION_ERROR` (invalid action), `SYMBOL_TRADE_MODE_RESTRICTED` (trade mode rejected), `REQUEST_REJECTED` (order rejected, slippage), `MT5_DISCONNECTED` (not connected), `INTERNAL_SERVER_ERROR` (unhandled). Keep success `TradeResponse` unchanged.
-- [ ] T017 [US1] Refactor `/close-position` endpoint in `app/routes/close_position.py` — replace all `TradeResponse(success=False, ...)` failure returns and inline `HTTPException` raises with `raise MessageEnvelopeException(...)` using: `RESOURCE_NOT_FOUND` (position not found), `SYMBOL_NOT_CONFIGURED` (symbol missing), `VALIDATION_VOLUME_RANGE`/`VALIDATION_VOLUME_STEP` (invalid volume), `REQUEST_REJECTED` (order rejected), `MT5_DISCONNECTED` (not connected), `EXECUTION_DISABLED` (execution disabled), `OVERLOAD_OR_SINGLE_FLIGHT` (queue overload)
-- [ ] T018 [US1] Refactor `/pending-order` endpoint in `app/routes/pending_order.py` — replace failure returns/raises with `raise MessageEnvelopeException(...)` using appropriate codes. Inspect the file first to identify all error paths, then apply the same pattern as T016/T017.
-- [ ] T019 [US1] Refactor `/order-check` endpoint in `app/routes/order_check.py` — replace failure returns/raises with `raise MessageEnvelopeException(...)`. Inspect the file first to identify all error paths.
-- [ ] T020 [US1] Refactor `/orders` endpoints (GET, PUT /{ticket}, DELETE /{ticket}) in `app/routes/orders.py` — replace `HTTPException` raises with `raise MessageEnvelopeException(...)` using appropriate codes for each error path
-- [ ] T021 [US1] Refactor `/positions` endpoints (GET, PUT /{ticket}/sltp) in `app/routes/positions.py` — replace `HTTPException` raises with `raise MessageEnvelopeException(...)` using appropriate codes for each error path
+- [x] T012 [US1] Register `MessageEnvelopeException` handler in `app/main.py` — serialize the carried envelope to JSON, set `X-Error-Code` header from `envelope.code`, set `X-Tracking-ID` header from `envelope.tracking_id`, log `tracking_id` and `code` as structured fields
+- [x] T013 [US1] Modify `unhandled_exception_handler` in `app/main.py` to wrap the error with `normalize_error(code=INTERNAL_SERVER_ERROR, ...)` and return the canonical envelope JSON alongside legacy `detail` field
+- [x] T014 [US1] Modify `http_exception_handler` in `app/main.py` to wrap errors with `normalize_error()` using the code from existing `_infer_error_code()`, set `X-Tracking-ID` header, and include both canonical envelope and legacy `detail` in response body
+- [x] T015 [US1] Modify `request_validation_exception_handler` in `app/main.py` to wrap Pydantic errors with `normalize_error(code=VALIDATION_ERROR, ...)`, generating a human-readable `title` and `message` from the first validation error, preserving the Pydantic array in `detail`
+- [x] T016 [US1] Refactor `/execute` endpoint in `app/routes/execute.py` — replace all `TradeResponse(success=False, error=...)` failure returns with `raise MessageEnvelopeException(...)` using the appropriate `ErrorCode` for each case: `SYMBOL_NOT_CONFIGURED` (unknown ticker), `VALIDATION_ERROR` (invalid action), `SYMBOL_TRADE_MODE_RESTRICTED` (trade mode rejected), `REQUEST_REJECTED` (order rejected, slippage), `MT5_DISCONNECTED` (not connected), `INTERNAL_SERVER_ERROR` (unhandled). Keep success `TradeResponse` unchanged.
+- [x] T017 [US1] Refactor `/close-position` endpoint in `app/routes/close_position.py` — replace all `TradeResponse(success=False, ...)` failure returns and inline `HTTPException` raises with `raise MessageEnvelopeException(...)` using: `RESOURCE_NOT_FOUND` (position not found), `SYMBOL_NOT_CONFIGURED` (symbol missing), `VALIDATION_VOLUME_RANGE`/`VALIDATION_VOLUME_STEP` (invalid volume), `REQUEST_REJECTED` (order rejected), `MT5_DISCONNECTED` (not connected), `EXECUTION_DISABLED` (execution disabled), `OVERLOAD_OR_SINGLE_FLIGHT` (queue overload)
+- [x] T018 [US1] Refactor `/pending-order` endpoint in `app/routes/pending_order.py` — replace failure returns/raises with `raise MessageEnvelopeException(...)` using appropriate codes. Inspect the file first to identify all error paths, then apply the same pattern as T016/T017.
+- [x] T019 [US1] Refactor `/order-check` endpoint in `app/routes/order_check.py` — replace failure returns/raises with `raise MessageEnvelopeException(...)`. Inspect the file first to identify all error paths.
+- [x] T020 [US1] Refactor `/orders` endpoints (GET, PUT /{ticket}, DELETE /{ticket}) in `app/routes/orders.py` — replace `HTTPException` raises with `raise MessageEnvelopeException(...)` using appropriate codes for each error path
+- [x] T021 [US1] Refactor `/positions` endpoints (GET, PUT /{ticket}/sltp) in `app/routes/positions.py` — replace `HTTPException` raises with `raise MessageEnvelopeException(...)` using appropriate codes for each error path
 
 **Checkpoint**: All trade-affecting endpoints return canonical envelope on errors. Success responses retain `TradeResponse` shape. Unit tests pass.
 
@@ -84,13 +84,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T022 [P] [US2] Create message severity CSS styles in `dashboard/css/messages.css` — define `.msg-envelope` container, severity variants (`.msg-critical` red, `.msg-high` orange, `.msg-medium` yellow, `.msg-low` blue, `.msg-success` green), `.msg-title`, `.msg-body`, `.msg-action`, `.msg-tracking-id`, `.msg-details-toggle`, `.msg-details-content`, `.msg-copy-btn` classes, and fade-in/auto-dismiss animations
-- [ ] T023 [US2] Create centralized message renderer module in `dashboard/js/message-renderer.js` — export `renderMessage(envelope, containerEl)` that: creates styled message banner from envelope fields, displays title (bold, severity-colored), message body, action text (highlighted), tracking ID in monospace with copy-to-clipboard button, collapsible "Details" toggle showing `context` as formatted key-value pairs. Auto-dismiss success/info messages after 5 seconds. Support stacking multiple messages.
-- [ ] T024 [US2] Add `<link>` for `css/messages.css` and `<script>` for `js/message-renderer.js` in `dashboard/index.html`. Add a `<div id="message-area">` container positioned for message display.
-- [ ] T025 [US2] Replace all `alert()` calls in `dashboard/js/execute-v2.js` (7 occurrences) with calls to `renderMessage()` — parse the API response as envelope when available, construct a minimal envelope for client-side validation errors (select symbol, volume > 0, missing price). Preserve success message for filled trades.
-- [ ] T026 [US2] Replace all `alert()` calls in `dashboard/js/positions.js` (7 occurrences) with calls to `renderMessage()` — handle close position success/failure, close-all completion, modify position success/failure
-- [ ] T027 [US2] Replace all `alert()` calls in `dashboard/js/orders.js` (4 occurrences) with calls to `renderMessage()` — handle cancel order, cancel-all, modify order success/failure
-- [ ] T028 [US2] Replace the `alert()` call in `dashboard/js/app.js` (1 occurrence) with `renderMessage()` — handle execution policy update failure
+- [x] T022 [P] [US2] Create message severity CSS styles in `dashboard/css/messages.css` — define `.msg-envelope` container, severity variants (`.msg-critical` red, `.msg-high` orange, `.msg-medium` yellow, `.msg-low` blue, `.msg-success` green), `.msg-title`, `.msg-body`, `.msg-action`, `.msg-tracking-id`, `.msg-details-toggle`, `.msg-details-content`, `.msg-copy-btn` classes, and fade-in/auto-dismiss animations
+- [x] T023 [US2] Create centralized message renderer module in `dashboard/js/message-renderer.js` — export `renderMessage(envelope, containerEl)` that: creates styled message banner from envelope fields, displays title (bold, severity-colored), message body, action text (highlighted), tracking ID in monospace with copy-to-clipboard button, collapsible "Details" toggle showing `context` as formatted key-value pairs. Auto-dismiss success/info messages after 5 seconds. Support stacking multiple messages.
+- [x] T024 [US2] Add `<link>` for `css/messages.css` and `<script>` for `js/message-renderer.js` in `dashboard/index.html`. Add a `<div id="message-area">` container positioned for message display.
+- [x] T025 [US2] Replace all `alert()` calls in `dashboard/js/execute-v2.js` (7 occurrences) with calls to `renderMessage()` — parse the API response as envelope when available, construct a minimal envelope for client-side validation errors (select symbol, volume > 0, missing price). Preserve success message for filled trades.
+- [x] T026 [US2] Replace all `alert()` calls in `dashboard/js/positions.js` (7 occurrences) with calls to `renderMessage()` — handle close position success/failure, close-all completion, modify position success/failure
+- [x] T027 [US2] Replace all `alert()` calls in `dashboard/js/orders.js` (4 occurrences) with calls to `renderMessage()` — handle cancel order, cancel-all, modify order success/failure
+- [x] T028 [US2] Replace the `alert()` call in `dashboard/js/app.js` (1 occurrence) with `renderMessage()` — handle execution policy update failure
 
 **Checkpoint**: Dashboard shows styled message banners for all trade operation outcomes. No `alert()` calls remain in critical paths. Tracking IDs are copyable.
 
@@ -104,15 +104,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Create contract tests verifying backward compatibility in `tests/contract/test_backward_compat.py` — for each of the 6 trade-affecting endpoints, assert that error responses contain `detail` field with the same type/content as pre-Phase-1 (string for HTTPException, list for validation errors). Assert `X-Error-Code` header is still populated.
-- [ ] T030 [P] [US3] Create contract tests verifying canonical envelope fields in `tests/contract/test_envelope_contract.py` — for each of the 6 trade-affecting endpoints, assert error responses contain all 11 canonical envelope fields (`ok`, `category`, `code`, `tracking_id`, `title`, `message`, `action`, `severity`, `retryable`, `context`, `detail`)
+- [x] T029 [P] [US3] Create contract tests verifying backward compatibility in `tests/contract/test_backward_compat.py` — for each of the 6 trade-affecting endpoints, assert that error responses contain `detail` field with the same type/content as pre-Phase-1 (string for HTTPException, list for validation errors). Assert `X-Error-Code` header is still populated.
+- [x] T030 [P] [US3] Create contract tests verifying canonical envelope fields in `tests/contract/test_envelope_contract.py` — for each of the 6 trade-affecting endpoints, assert error responses contain all 11 canonical envelope fields (`ok`, `category`, `code`, `tracking_id`, `title`, `message`, `action`, `severity`, `retryable`, `context`, `detail`)
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Verify and harden legacy `detail` field population in all 3 exception handlers in `app/main.py` — ensure `detail` is always present alongside the canonical envelope, matching the pre-Phase-1 content type (string for HTTP exceptions, list for validation errors)
-- [ ] T032 [US3] Add structured logging of `tracking_id` and `code` to all 3 exception handlers in `app/main.py` and to `MessageEnvelopeException` handler — use `logger.info()` or `logger.error()` with explicit `tracking_id=` and `code=` kwargs so the fields are grep-searchable in log output
-- [ ] T033 [US3] Verify `X-Error-Code` header maps correctly to canonical `code` value across all exception handlers — the `_infer_error_code()` function output must match the `ErrorCode` enum member used in the envelope. Add a cross-reference assertion in the `MessageEnvelopeException` handler.
-- [ ] T034 [US3] Add `X-Tracking-ID` response header to all exception handlers and to the `MessageEnvelopeException` handler in `app/main.py` — set value from `envelope.tracking_id`
+- [x] T031 [US3] Verify and harden legacy `detail` field population in all 3 exception handlers in `app/main.py` — ensure `detail` is always present alongside the canonical envelope, matching the pre-Phase-1 content type (string for HTTP exceptions, list for validation errors)
+- [x] T032 [US3] Add structured logging of `tracking_id` and `code` to all 3 exception handlers in `app/main.py` and to `MessageEnvelopeException` handler — use `logger.info()` or `logger.error()` with explicit `tracking_id=` and `code=` kwargs so the fields are grep-searchable in log output
+- [x] T033 [US3] Verify `X-Error-Code` header maps correctly to canonical `code` value across all exception handlers — the `_infer_error_code()` function output must match the `ErrorCode` enum member used in the envelope. Add a cross-reference assertion in the `MessageEnvelopeException` handler.
+- [x] T034 [US3] Add `X-Tracking-ID` response header to all exception handlers and to the `MessageEnvelopeException` handler in `app/main.py` — set value from `envelope.tracking_id`
 
 **Checkpoint**: Legacy `detail` field present in all error responses. Structured logs searchable by `tracking_id` and `code`. `X-Error-Code` and `X-Tracking-ID` headers present.
 
@@ -122,12 +122,12 @@
 
 **Purpose**: Validation, documentation, and final cleanup
 
-- [ ] T035 [P] Run existing test suite (`tests/contract/` and `tests/integration/`) to verify no regressions — command: `.venv/bin/python -m pytest tests/ -v`
-- [ ] T036 [P] Run new unit tests — command: `.venv/bin/python -m pytest tests/unit/test_envelope.py tests/unit/test_codes.py tests/unit/test_tracking.py tests/unit/test_normalizer.py -v`
-- [ ] T037 [P] Run new contract tests — command: `.venv/bin/python -m pytest tests/contract/test_envelope_contract.py tests/contract/test_backward_compat.py -v`
-- [ ] T038 Run lint check — command: `.venv/bin/python -m ruff check app tests`
-- [ ] T039 Validate quickstart.md verification checklist — walk through all 10 items and confirm each passes
-- [ ] T040 Update `app/messaging/__init__.py` with public API exports: `MessageEnvelope`, `MessageEnvelopeException`, `ErrorCode`, `generate_tracking_id`, `normalize_error`, `normalize_success`
+- [x] T035 [P] Run existing test suite (`tests/contract/` and `tests/integration/`) to verify no regressions — command: `.venv/bin/python -m pytest tests/ -v`
+- [x] T036 [P] Run new unit tests — command: `.venv/bin/python -m pytest tests/unit/test_envelope.py tests/unit/test_codes.py tests/unit/test_tracking.py tests/unit/test_normalizer.py -v`
+- [x] T037 [P] Run new contract tests — command: `.venv/bin/python -m pytest tests/contract/test_envelope_contract.py tests/contract/test_backward_compat.py -v`
+- [x] T038 Run lint check — command: `.venv/bin/python -m ruff check app tests`
+- [x] T039 Validate quickstart.md verification checklist — walk through all 10 items and confirm each passes
+- [x] T040 Update `app/messaging/__init__.py` with public API exports: `MessageEnvelope`, `MessageEnvelopeException`, `ErrorCode`, `generate_tracking_id`, `normalize_error`, `normalize_success`
 
 ---
 
