@@ -92,6 +92,12 @@ def _connect() -> bool:
                 return False
 
         _state = WorkerState.AUTHORIZED
+        # T030: Invalidate capabilities cache so dashboard gets fresh symbols after reconnect
+        try:
+            from .routes.broker_capabilities import invalidate_capabilities_cache
+            invalidate_capabilities_cache()
+        except Exception:
+            pass  # Non-critical — cache will expire via TTL if import fails
         return True
     except Exception as exc:
         logger.exception("MT5 connect error: %s", exc)

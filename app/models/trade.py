@@ -17,6 +17,14 @@ class TradeRequest(BaseModel):
     multi_trade_mode: bool = Field(default=False, description="Allow parallel execution submissions")
     sl: float | None = Field(default=None, description="Optional stop loss price")
     tp: float | None = Field(default=None, description="Optional take profit price")
+    mt5_symbol_direct: str | None = Field(
+        default=None,
+        description=(
+            "Optional raw MT5 symbol name. When set, bypasses the YAML symbol_map lookup. "
+            "For use by the dashboard to trade symbols not configured in symbols.yaml. "
+            "The 'ticker' field is still required for audit logging."
+        ),
+    )
 
 
 class TradeResponse(BaseModel):

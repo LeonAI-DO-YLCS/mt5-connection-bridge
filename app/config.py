@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     # Test support
     disable_mt5_worker: bool = Field(default=False, alias="DISABLE_MT5_WORKER")
 
+    # Broker capabilities cache (feature 008-adaptive-broker-capabilities)
+    capabilities_cache_ttl_seconds: int = Field(
+        default=60,
+        alias="CAPABILITIES_CACHE_TTL_SECONDS",
+        description="How long (in seconds) the broker capabilities cache is valid before re-fetching from MT5",
+    )
+    auto_select_symbols: bool = Field(
+        default=True,
+        alias="AUTO_SELECT_SYMBOLS",
+        description="Automatically select symbols in MT5 Market Watch when scanning the broker catalog",
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

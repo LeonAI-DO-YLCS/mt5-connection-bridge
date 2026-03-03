@@ -15,7 +15,11 @@ router = APIRouter(tags=["execution"])
 
 @router.post("/order-check", response_model=OrderCheckResponse, summary="Pre-validate a pending order")
 async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
-    if req.ticker not in symbol_map:
+    if req.mt5_symbol_direct:
+        mt5_symbol = req.mt5_symbol_direct.strip()
+    elif req.ticker in symbol_map:
+        mt5_symbol = symbol_map[req.ticker].mt5_symbol
+    else:
         log_task_event(
             "order_check",
             request=req,
@@ -24,8 +28,6 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
             details={"reason": "unknown_ticker"},
         )
         raise HTTPException(status_code=404, detail=f"Unknown ticker '{req.ticker}'")
-
-    mt5_symbol = symbol_map[req.ticker].mt5_symbol
 
     if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
         log_task_event(

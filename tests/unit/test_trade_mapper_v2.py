@@ -81,7 +81,9 @@ def test_build_pending_order_request():
     assert req["magic"] == 88001
     assert req["comment"] == "test pending"
     assert req["type_time"] == _mt5_const("ORDER_TIME_GTC", 0)
-    assert req["type_filling"] == _mt5_const("ORDER_FILLING_IOC", 2)
+    # type_filling is now dynamic (resolved from symbol_info.filling_mode bitmask).
+    # SimpleNamespace() has no filling_mode attr → bitmask=0 → RETURN=0
+    assert req["type_filling"] == _mt5_const("ORDER_FILLING_RETURN", 0)
 
 def test_build_modify_order_request():
     req = build_modify_order_request(2001, 1.1000, 1.0900, 1.1200)
