@@ -10,6 +10,7 @@
  *  T036: mt5_symbol_direct sent in payload when broker-native symbol is selected
  */
 import { api } from "./app.js";
+import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
 
 let checkTimeout = null;
 let _capabilitiesCache = null;
@@ -436,12 +437,12 @@ export async function renderExecute(contentEl) {
   execSubmitBtn.addEventListener("click", async () => {
     const val = execTicker.value;
     if (!val) {
-      alert("Select a symbol before submitting.");
+      showError("Select a symbol before submitting.");
       return;
     }
     const volume = Number(execVolume.value);
     if (!Number.isFinite(volume) || volume <= 0) {
-      alert("Volume must be greater than 0.");
+      showError("Volume must be greater than 0.");
       return;
     }
 
@@ -460,13 +461,13 @@ export async function renderExecute(contentEl) {
         route = "/pending-order";
         payload = buildPendingPayload();
         if (!payload) {
-          alert("Pending orders require symbol, volume, and trigger price.");
+          showError("Pending orders require symbol, volume, and trigger price.");
           return;
         }
       } else {
         if (!latestTick) await refreshTick();
         if (!latestTick) {
-          alert("Unable to fetch live price for market order.");
+          showError("Unable to fetch live price for market order.");
           return;
         }
         const marketPrice = execType.value === "sell" ? Number(latestTick.bid) : Number(latestTick.ask);
@@ -475,13 +476,13 @@ export async function renderExecute(contentEl) {
 
       const res = await api(route, { method: "POST", body: JSON.stringify(payload) });
       if (res.success) {
-        alert(`✅ Success. Ticket ID: ${res.ticket_id}`);
+        showSuccess(`Trade executed. Ticket ID: ${res.ticket_id}`, res);
         [execPrice, execSL, execTP, execComment].forEach((el) => (el.value = ""));
       } else {
-        alert(`❌ Failed: ${res.error || "Unknown execution error"}`);
+        showError(res.error || "Unknown execution error");
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      showEnvelope(err.envelope || err);
     } finally {
       execSubmitBtn.disabled = false;
       execSubmitBtn.innerText = "Submit";

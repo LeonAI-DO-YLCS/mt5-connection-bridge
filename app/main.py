@@ -17,6 +17,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from .messaging.codes import ErrorCode
+from .messaging.envelope import MessageEnvelopeException
+from .messaging.normalizer import normalize_error
+
 from .audit import init_audit_logging
 from .auth import verify_api_key
 from .config import get_settings, load_symbol_map
@@ -85,13 +89,50 @@ async def request_metrics_middleware(request: Request, call_next):
     return response
 
 
+@app.exception_handler(MessageEnvelopeException)
+async def message_envelope_exception_handler(request: Request, exc: MessageEnvelopeException):
+    """Handle route-level errors raised as MessageEnvelopeException."""
+    env = exc.envelope
+    logger.error(
+        "[%s] %s — %s (endpoint=%s)",
+        env.code,
+        env.title,
+        env.message,
+        request.url.path,
+        extra={"tracking_id": env.tracking_id, "code": env.code},
+    )
+    body = env.model_dump()
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=body,
+        headers={
+            "X-Error-Code": env.code,
+            "X-Tracking-ID": env.tracking_id,
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled exception on %s: %s", request.url.path, exc)
+    env = normalize_error(
+        ErrorCode.INTERNAL_SERVER_ERROR,
+        detail="Internal server error",
+    )
+    logger.exception(
+        "[%s] Unhandled exception on %s: %s",
+        env.code,
+        request.url.path,
+        exc,
+        extra={"tracking_id": env.tracking_id, "code": env.code},
+    )
+    body = env.model_dump()
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"},
-        headers={"X-Error-Code": "INTERNAL_SERVER_ERROR"},
+        content=body,
+        headers={
+            "X-Error-Code": env.code,
+            "X-Tracking-ID": env.tracking_id,
+        },
     )
 
 
@@ -120,17 +161,60 @@ def _infer_error_code(status_code: int, detail: object) -> str:
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
+    inferred_code_name = _infer_error_code(exc.status_code, exc.detail)
+    try:
+        error_code = ErrorCode[inferred_code_name]
+    except KeyError:
+        error_code = ErrorCode.REQUEST_ERROR
+
+    env = normalize_error(
+        error_code,
+        message=str(exc.detail) if not isinstance(exc.detail, list) else None,
+        detail=exc.detail,
+    )
+    logger.warning(
+        "[%s] HTTP %d on %s: %s",
+        env.code,
+        exc.status_code,
+        request.url.path,
+        exc.detail,
+        extra={"tracking_id": env.tracking_id, "code": env.code},
+    )
+    body = env.model_dump()
     headers = dict(exc.headers or {})
-    headers.setdefault("X-Error-Code", _infer_error_code(exc.status_code, exc.detail))
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=headers)
+    headers["X-Error-Code"] = env.code
+    headers["X-Tracking-ID"] = env.tracking_id
+    return JSONResponse(status_code=exc.status_code, content=body, headers=headers)
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    first = errors[0] if errors else {}
+    field = " → ".join(str(p) for p in first.get("loc", [])) or "input"
+    msg_text = first.get("msg", "Validation failed")
+
+    env = normalize_error(
+        ErrorCode.VALIDATION_ERROR,
+        message=f"{field}: {msg_text}",
+        action="Check the highlighted fields and correct the input.",
+        detail=errors,
+    )
+    logger.warning(
+        "[%s] Validation error on %s: %s",
+        env.code,
+        request.url.path,
+        msg_text,
+        extra={"tracking_id": env.tracking_id, "code": env.code},
+    )
+    body = env.model_dump()
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors()},
-        headers={"X-Error-Code": "VALIDATION_ERROR"},
+        content=body,
+        headers={
+            "X-Error-Code": env.code,
+            "X-Tracking-ID": env.tracking_id,
+        },
     )
 
 

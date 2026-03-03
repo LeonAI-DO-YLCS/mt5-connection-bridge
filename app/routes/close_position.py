@@ -3,7 +3,10 @@ import logging
 import threading
 import math
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
+
+from ..messaging.codes import ErrorCode
+from ..messaging.envelope import MessageEnvelopeException
 
 from ..audit import log_trade
 from ..main import settings
@@ -77,19 +80,28 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
     if not settings.execution_enabled:
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false).")
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=response.error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=ErrorCode.EXECUTION_DISABLED,
+            message="Execution disabled by policy (EXECUTION_ENABLED=false).",
+        )
 
     gate_error = _acquire_single_flight()
     if gate_error:
         response = TradeResponse(success=False, error=gate_error)
         log_trade(req, response, metadata={"state": "blocked_overload_or_single_flight"})
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=response.error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_409_CONFLICT,
+            code=ErrorCode.OVERLOAD_OR_SINGLE_FLIGHT,
+            message=gate_error,
+        )
 
     try:
         if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
-            raise HTTPException(
+            raise MessageEnvelopeException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="MT5 terminal not connected",
+                code=ErrorCode.MT5_DISCONNECTED,
+                message="MT5 terminal not connected",
             )
 
         def _execute_in_worker() -> tuple[TradeResponse, str]:
@@ -152,21 +164,44 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
             if response.success:
                 return response
             if trade_state == "position_not_found":
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    code=ErrorCode.RESOURCE_NOT_FOUND,
+                    message=response.error or f"Position {req.ticket} not found",
+                    context={"ticket": req.ticket},
+                )
             if trade_state == "invalid_volume":
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=response.error)
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    code=ErrorCode.VALIDATION_VOLUME_RANGE,
+                    message=response.error or "Invalid close volume",
+                    context={"ticket": req.ticket},
+                )
             if trade_state == "symbol_missing":
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error or "Close request failed")
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    code=ErrorCode.SYMBOL_NOT_CONFIGURED,
+                    message=response.error or "Symbol info unavailable",
+                )
+            raise MessageEnvelopeException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code=ErrorCode.REQUEST_REJECTED,
+                message=response.error or "Close request failed",
+                context={"ticket": req.ticket},
+            )
         except ConnectionError:
             response = TradeResponse(success=False, error="Not connected to MT5")
             log_trade(req, response, metadata={"state": "connection_error"})
-            raise HTTPException(status_code=503, detail="Not connected to MT5")
-        except HTTPException:
+            raise MessageEnvelopeException(
+                status_code=503,
+                code=ErrorCode.MT5_DISCONNECTED,
+                message="Not connected to MT5",
+            )
+        except MessageEnvelopeException:
             raise
         except Exception as e:
             response = TradeResponse(success=False, error=str(e))
             log_trade(req, response, metadata={"state": "internal_error"})
-            raise HTTPException(status_code=500, detail=str(e))
+            raise
     finally:
         _release_single_flight()

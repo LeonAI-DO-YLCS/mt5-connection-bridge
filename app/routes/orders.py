@@ -6,6 +6,9 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Path, status
 
+from ..messaging.codes import ErrorCode
+from ..messaging.envelope import MessageEnvelopeException
+
 from ..audit import log_trade
 from ..main import settings
 from ..mappers.order_mapper import map_mt5_order
@@ -72,9 +75,10 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
     if not settings.execution_enabled:
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false)")
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "blocked_execution_disabled"})
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Execution disabled by policy (EXECUTION_ENABLED=false)"
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=ErrorCode.EXECUTION_DISABLED,
+            message="Execution disabled by policy (EXECUTION_ENABLED=false)",
         )
 
     if settings.disable_mt5_worker:
@@ -84,7 +88,11 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
     if gate_error:
         response = TradeResponse(success=False, error=gate_error)
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "blocked_overload_or_single_flight"})
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=gate_error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_409_CONFLICT,
+            code=ErrorCode.OVERLOAD_OR_SINGLE_FLIGHT,
+            message=gate_error,
+        )
 
     def _cancel_order():
         from ..mappers.trade_mapper import build_cancel_order_request
@@ -109,18 +117,32 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
         if response.success:
             return {"success": True, "ticket_id": ticket, "error": None}
         if state == "order_not_found":
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error)
+            raise MessageEnvelopeException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                code=ErrorCode.RESOURCE_NOT_FOUND,
+                message=response.error or f"Order {ticket} not found",
+                context={"ticket": ticket},
+            )
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code=ErrorCode.REQUEST_REJECTED,
+            message=response.error or "Cancel request failed",
+            context={"ticket": ticket},
+        )
     except ConnectionError:
         response = TradeResponse(success=False, error="Not connected to MT5")
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "connection_error"})
-        raise HTTPException(status_code=503, detail="Not connected to MT5")
-    except HTTPException:
+        raise MessageEnvelopeException(
+            status_code=503,
+            code=ErrorCode.MT5_DISCONNECTED,
+            message="Not connected to MT5",
+        )
+    except MessageEnvelopeException:
         raise
     except Exception as e:
         response = TradeResponse(success=False, error=str(e))
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "internal_error"})
-        raise HTTPException(status_code=500, detail=str(e))
+        raise
     finally:
         _release_single_flight()
 
@@ -136,9 +158,10 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             response,
             metadata={"state": "blocked_execution_disabled"},
         )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Execution disabled by policy (EXECUTION_ENABLED=false)"
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=ErrorCode.EXECUTION_DISABLED,
+            message="Execution disabled by policy (EXECUTION_ENABLED=false)",
         )
 
     if settings.disable_mt5_worker:
@@ -152,7 +175,11 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             response,
             metadata={"state": "blocked_overload_or_single_flight"},
         )
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=gate_error)
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_409_CONFLICT,
+            code=ErrorCode.OVERLOAD_OR_SINGLE_FLIGHT,
+            message=gate_error,
+        )
 
     def _modify_order():
         from ..mappers.trade_mapper import build_modify_order_request
@@ -187,8 +214,18 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
         if response.success:
             return {"success": True, "ticket_id": ticket, "error": None}
         if state == "order_not_found":
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error)
+            raise MessageEnvelopeException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                code=ErrorCode.RESOURCE_NOT_FOUND,
+                message=response.error or f"Order {ticket} not found",
+                context={"ticket": ticket},
+            )
+        raise MessageEnvelopeException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code=ErrorCode.REQUEST_REJECTED,
+            message=response.error or "Modify request failed",
+            context={"ticket": ticket},
+        )
     except ConnectionError:
         response = TradeResponse(success=False, error="Not connected to MT5")
         log_trade(
@@ -196,8 +233,12 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             response,
             metadata={"state": "connection_error"},
         )
-        raise HTTPException(status_code=503, detail="Not connected to MT5")
-    except HTTPException:
+        raise MessageEnvelopeException(
+            status_code=503,
+            code=ErrorCode.MT5_DISCONNECTED,
+            message="Not connected to MT5",
+        )
+    except MessageEnvelopeException:
         raise
     except Exception as e:
         response = TradeResponse(success=False, error=str(e))
@@ -206,6 +247,6 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             response,
             metadata={"state": "internal_error"},
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise
     finally:
         _release_single_flight()
