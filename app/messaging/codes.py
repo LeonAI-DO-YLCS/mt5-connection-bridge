@@ -210,6 +210,18 @@ class ErrorCode(Enum):
         category="error",
     )
 
+    # ── Readiness domain ──────────────────────────────────────────────────
+    READINESS_EVALUATION_FAILED = _CodeMeta(
+        domain="READINESS",
+        default_title="Readiness evaluation failed",
+        default_message="The readiness endpoint could not complete its evaluation.",
+        default_action="Retry the request. If the issue persists, check the bridge logs.",
+        default_severity="high",
+        default_retryable=True,
+        default_http_status=500,
+        category="error",
+    )
+
     # ── Generic / internal domain ────────────────────────────────────────
     INTERNAL_SERVER_ERROR = _CodeMeta(
         domain="INTERNAL",
@@ -230,6 +242,28 @@ class ErrorCode(Enum):
         default_retryable=False,
         default_http_status=401,
         category="error",
+    )
+
+    # ── Idempotency domain ────────────────────────────────────────────────
+    IDEMPOTENCY_KEY_CONFLICT = _CodeMeta(
+        domain="IDEMPOTENCY",
+        default_title="Idempotency key conflict",
+        default_message="The same idempotency key was already used with different request parameters.",
+        default_action="Use a new idempotency key for this request.",
+        default_severity="medium",
+        default_retryable=False,
+        default_http_status=409,
+        category="error",
+    )
+    IDEMPOTENCY_KEY_REPLAYED = _CodeMeta(
+        domain="IDEMPOTENCY",
+        default_title="Idempotency key replayed",
+        default_message="This request was already processed. Returning the cached result.",
+        default_action="No action required — this is the original result.",
+        default_severity="low",
+        default_retryable=False,
+        default_http_status=200,
+        category="info",
     )
 
     # ── Convenience accessors ────────────────────────────────────────────

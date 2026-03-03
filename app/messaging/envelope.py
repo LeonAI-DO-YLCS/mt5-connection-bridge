@@ -54,6 +54,11 @@ class MessageEnvelope(BaseModel):
         default=None,
         description="Legacy detail field for backward compatibility",
     )
+    # Optional: terminal lifecycle state for trade-affecting operations (FR-002)
+    operation_state: str | None = Field(
+        default=None,
+        description="Terminal lifecycle state for trade-affecting operations (accepted, rejected, failed_terminal)",
+    )
     # Optional: trade-specific data for success responses
     data: dict[str, Any] | None = Field(
         default=None,

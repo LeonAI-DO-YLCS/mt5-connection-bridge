@@ -2,7 +2,11 @@ import asyncio
 import logging
 import threading
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, status
+
+from ..execution.idempotency import compute_request_hash, idempotency_store
+from ..execution.lifecycle import OperationState, create_context, transition
+from ..execution.observability import emit_operation_log
 
 from ..messaging.codes import ErrorCode
 from ..messaging.envelope import MessageEnvelopeException
@@ -40,8 +44,27 @@ def _release_single_flight() -> None:
         _inflight_requests = max(_inflight_requests - 1, 0)
 
 @router.post("/pending-order", response_model=TradeResponse, summary="Submit a pending order")
-async def pending_order(req: PendingOrderRequest) -> TradeResponse:
+async def pending_order(
+    req: PendingOrderRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> TradeResponse:
+    # ── Phase 3: Lifecycle + Idempotency setup ──────────────────────────
+    request_hash = compute_request_hash(req.model_dump()) if idempotency_key else None
+    ctx = create_context("pending_order", idempotency_key=idempotency_key, request_hash=request_hash)
+
+    if idempotency_key and request_hash:
+        cached = idempotency_store.check(idempotency_key, request_hash)
+        if cached is not None:
+            emit_operation_log(ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit")
+            return TradeResponse(**cached.response)
+        if idempotency_store.check_conflict(idempotency_key, request_hash):
+            raise MessageEnvelopeException(
+                code=ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+                message="Idempotency key already used with different parameters.",
+            )
     if not settings.execution_enabled:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled")
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false).")
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
         raise MessageEnvelopeException(
@@ -77,11 +100,15 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
 
     try:
         if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
+            transition(ctx, OperationState.REJECTED)
+            emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="not_connected")
             raise MessageEnvelopeException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 code=ErrorCode.MT5_DISCONNECTED,
                 message="MT5 terminal not connected",
             )
+
+        transition(ctx, OperationState.DISPATCHING)
 
         mt5_symbol_resolved = mt5_symbol
 
@@ -139,6 +166,16 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
             response, trade_state = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
             log_trade(req, response, metadata={"state": trade_state})
             logger.info("MT5 pending order result: %s", response.model_dump())
+
+            if response.success:
+                transition(ctx, OperationState.ACCEPTED)
+            else:
+                transition(ctx, OperationState.REJECTED)
+            emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=trade_state)
+
+            if idempotency_key and request_hash:
+                idempotency_store.store(idempotency_key, request_hash, response.model_dump(), "pending_order")
+
             if response.success:
                 return response
             if trade_state == "trade_mode_rejected":
@@ -165,6 +202,8 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
                 message=response.error or "Pending order request failed",
             )
         except ConnectionError:
+            transition(ctx, OperationState.FAILED_TERMINAL)
+            emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="connection_error")
             response = TradeResponse(success=False, error="Not connected to MT5")
             log_trade(req, response, metadata={"state": "connection_error"})
             raise MessageEnvelopeException(
@@ -175,6 +214,8 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
         except MessageEnvelopeException:
             raise
         except Exception as e:
+            transition(ctx, OperationState.FAILED_TERMINAL)
+            emit_operation_log(ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error")
             response = TradeResponse(success=False, error=str(e))
             log_trade(req, response, metadata={"state": "internal_error"})
             raise

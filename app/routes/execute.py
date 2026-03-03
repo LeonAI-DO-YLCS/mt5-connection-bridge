@@ -6,8 +6,11 @@ import asyncio
 import logging
 import threading
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, status
 
+from ..execution.idempotency import compute_request_hash, idempotency_store
+from ..execution.lifecycle import OperationState, create_context, transition
+from ..execution.observability import emit_operation_log
 from ..messaging.codes import ErrorCode
 from ..messaging.envelope import MessageEnvelopeException
 
@@ -55,13 +58,38 @@ def _release_single_flight() -> None:
 
 
 @router.post("/execute", response_model=TradeResponse)
-async def execute_trade(req: TradeRequest) -> TradeResponse:
-    # Resolve MT5 symbol — either via YAML alias or direct name (dashboard bypass)
+async def execute_trade(
+    req: TradeRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> TradeResponse:
+    # ── Phase 3: Lifecycle + Idempotency setup ──────────────────────────
+    request_hash = compute_request_hash(req.model_dump()) if idempotency_key else None
+    ctx = create_context(
+        "execute_trade",
+        idempotency_key=idempotency_key,
+        request_hash=request_hash,
+    )
+
+    # Idempotency check (FR-004 through FR-006)
+    if idempotency_key and request_hash:
+        cached = idempotency_store.check(idempotency_key, request_hash)
+        if cached is not None:
+            emit_operation_log(ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit")
+            return TradeResponse(**cached.response)
+        if idempotency_store.check_conflict(idempotency_key, request_hash):
+            raise MessageEnvelopeException(
+                code=ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+                message="Idempotency key already used with different parameters.",
+            )
+
+    # ── Symbol resolution ───────────────────────────────────────────────
     if req.mt5_symbol_direct:
         mt5_symbol = req.mt5_symbol_direct.strip()
     elif req.ticker in symbol_map:
         mt5_symbol = symbol_map[req.ticker].mt5_symbol
     else:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="SYMBOL_NOT_CONFIGURED", final_outcome="unknown_ticker")
         response = TradeResponse(success=False, error=f"Unknown ticker: {req.ticker}")
         log_trade(req, response, metadata={"state": "blocked_unknown_ticker"})
         raise MessageEnvelopeException(
@@ -75,6 +103,8 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
     try:
         action_to_mt5_order_type(req.action)
     except ValueError as exc:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="VALIDATION_ERROR", final_outcome="invalid_action")
         response = TradeResponse(success=False, error=str(exc))
         log_trade(req, response, metadata={"state": "blocked_invalid_action"})
         raise MessageEnvelopeException(
@@ -86,6 +116,8 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
         ) from exc
 
     if not settings.execution_enabled:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled")
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false).")
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
         raise MessageEnvelopeException(
@@ -96,6 +128,8 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
 
     gate_error = _acquire_single_flight(req)
     if gate_error:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="OVERLOAD_OR_SINGLE_FLIGHT", final_outcome="overload_or_single_flight")
         response = TradeResponse(success=False, error=gate_error)
         log_trade(req, response, metadata={"state": "blocked_overload_or_single_flight"})
         raise MessageEnvelopeException(
@@ -106,11 +140,16 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
 
     try:
         if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
+            transition(ctx, OperationState.REJECTED)
+            emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="not_connected")
             raise MessageEnvelopeException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 code=ErrorCode.MT5_DISCONNECTED,
                 message="MT5 terminal not connected",
             )
+
+        # ── Transition to DISPATCHING ───────────────────────────────────
+        transition(ctx, OperationState.DISPATCHING)
 
         mt5_symbol_resolved = mt5_symbol  # resolved above (YAML alias or mt5_symbol_direct)
 
@@ -209,6 +248,19 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
         response, trade_state = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
         log_trade(req, response, metadata={"state": trade_state})
         logger.info("MT5 order result: %s", response.model_dump())
+
+        # ── Lifecycle terminal state ────────────────────────────────────
+        if response.success:
+            transition(ctx, OperationState.ACCEPTED)
+        else:
+            transition(ctx, OperationState.REJECTED)
+
+        emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=trade_state)
+
+        # Cache for idempotency replay (FR-005)
+        if idempotency_key and request_hash:
+            idempotency_store.store(idempotency_key, request_hash, response.model_dump(), "execute_trade")
+
         if not response.success and trade_state == "trade_mode_rejected":
             raise MessageEnvelopeException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -218,6 +270,8 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
             )
         return response
     except ConnectionError as exc:
+        transition(ctx, OperationState.FAILED_TERMINAL)
+        emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="connection_error")
         response = TradeResponse(success=False, error=str(exc))
         log_trade(req, response, metadata={"state": "connection_error"})
         raise MessageEnvelopeException(
@@ -228,6 +282,8 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
     except MessageEnvelopeException:
         raise
     except Exception as exc:
+        transition(ctx, OperationState.FAILED_TERMINAL)
+        emit_operation_log(ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error")
         response = TradeResponse(success=False, error=str(exc))
         log_trade(req, response, metadata={"state": "internal_error"})
         raise

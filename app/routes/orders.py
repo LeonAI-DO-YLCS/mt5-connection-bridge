@@ -4,7 +4,11 @@ import asyncio
 import threading
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Header, HTTPException, Path, status
+
+from ..execution.idempotency import compute_request_hash, idempotency_store
+from ..execution.lifecycle import OperationState, create_context, transition
+from ..execution.observability import emit_operation_log
 
 from ..messaging.codes import ErrorCode
 from ..messaging.envelope import MessageEnvelopeException
@@ -68,11 +72,30 @@ async def get_orders() -> Dict[str, Any]:
     return {"orders": mapped_orders, "count": len(mapped_orders)}
 
 @router.delete("/orders/{ticket}", summary="Cancel a pending order")
-async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pending order")):
+async def cancel_order(
+    ticket: int = Path(..., description="Ticket ID of the pending order"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
     """
     Cancel an existing pending order by ticket ID.
     """
+    request_hash = compute_request_hash({"action": "cancel_order", "ticket": ticket}) if idempotency_key else None
+    ctx = create_context("cancel_order", idempotency_key=idempotency_key, request_hash=request_hash)
+
+    if idempotency_key and request_hash:
+        cached = idempotency_store.check(idempotency_key, request_hash)
+        if cached is not None:
+            emit_operation_log(ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit")
+            return cached.response
+        if idempotency_store.check_conflict(idempotency_key, request_hash):
+            raise MessageEnvelopeException(
+                code=ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+                message="Idempotency key already used with different parameters.",
+            )
+
     if not settings.execution_enabled:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled")
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false)")
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "blocked_execution_disabled"})
         raise MessageEnvelopeException(
@@ -112,8 +135,20 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
         return TradeResponse(success=True, ticket_id=ticket, error=None), "cancelled"
 
     try:
+        transition(ctx, OperationState.DISPATCHING)
         response, state = await asyncio.wrap_future(submit(_cancel_order))
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": state})
+
+        if response.success:
+            transition(ctx, OperationState.ACCEPTED)
+        else:
+            transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=state)
+
+        if idempotency_key and request_hash:
+            result_dict = {"success": True, "ticket_id": ticket, "error": None} if response.success else response.model_dump()
+            idempotency_store.store(idempotency_key, request_hash, result_dict, "cancel_order")
+
         if response.success:
             return {"success": True, "ticket_id": ticket, "error": None}
         if state == "order_not_found":
@@ -130,6 +165,8 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
             context={"ticket": ticket},
         )
     except ConnectionError:
+        transition(ctx, OperationState.FAILED_TERMINAL)
+        emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="connection_error")
         response = TradeResponse(success=False, error="Not connected to MT5")
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "connection_error"})
         raise MessageEnvelopeException(
@@ -140,6 +177,8 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
     except MessageEnvelopeException:
         raise
     except Exception as e:
+        transition(ctx, OperationState.FAILED_TERMINAL)
+        emit_operation_log(ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error")
         response = TradeResponse(success=False, error=str(e))
         log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "internal_error"})
         raise
@@ -147,11 +186,31 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
         _release_single_flight()
 
 @router.put("/orders/{ticket}", summary="Modify a pending order")
-async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., description="Ticket ID of the pending order")):
+async def modify_order(
+    req: ModifyOrderRequest,
+    ticket: int = Path(..., description="Ticket ID of the pending order"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
     """
     Modify an existing pending order.
     """
+    request_hash = compute_request_hash({"action": "modify_order", "ticket": ticket, **req.model_dump()}) if idempotency_key else None
+    ctx = create_context("modify_order", idempotency_key=idempotency_key, request_hash=request_hash)
+
+    if idempotency_key and request_hash:
+        cached = idempotency_store.check(idempotency_key, request_hash)
+        if cached is not None:
+            emit_operation_log(ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit")
+            return cached.response
+        if idempotency_store.check_conflict(idempotency_key, request_hash):
+            raise MessageEnvelopeException(
+                code=ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+                message="Idempotency key already used with different parameters.",
+            )
+
     if not settings.execution_enabled:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled")
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false)")
         log_trade(
             {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
@@ -199,6 +258,7 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
         return TradeResponse(success=True, ticket_id=ticket, error=None), "modified"
 
     try:
+        transition(ctx, OperationState.DISPATCHING)
         response, state = await asyncio.wrap_future(submit(_modify_order))
         log_trade(
             {
@@ -211,6 +271,17 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             response,
             metadata={"state": state},
         )
+
+        if response.success:
+            transition(ctx, OperationState.ACCEPTED)
+        else:
+            transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=state)
+
+        if idempotency_key and request_hash:
+            result_dict = {"success": True, "ticket_id": ticket, "error": None} if response.success else response.model_dump()
+            idempotency_store.store(idempotency_key, request_hash, result_dict, "modify_order")
+
         if response.success:
             return {"success": True, "ticket_id": ticket, "error": None}
         if state == "order_not_found":
@@ -227,6 +298,8 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             context={"ticket": ticket},
         )
     except ConnectionError:
+        transition(ctx, OperationState.FAILED_TERMINAL)
+        emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="connection_error")
         response = TradeResponse(success=False, error="Not connected to MT5")
         log_trade(
             {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
@@ -241,6 +314,8 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
     except MessageEnvelopeException:
         raise
     except Exception as e:
+        transition(ctx, OperationState.FAILED_TERMINAL)
+        emit_operation_log(ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error")
         response = TradeResponse(success=False, error=str(e))
         log_trade(
             {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
