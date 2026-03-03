@@ -70,6 +70,8 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
     Cancel an existing pending order by ticket ID.
     """
     if not settings.execution_enabled:
+        response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false)")
+        log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "blocked_execution_disabled"})
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Execution disabled by policy (EXECUTION_ENABLED=false)"
@@ -80,6 +82,8 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
 
     gate_error = _acquire_single_flight()
     if gate_error:
+        response = TradeResponse(success=False, error=gate_error)
+        log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "blocked_overload_or_single_flight"})
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=gate_error)
 
     def _cancel_order():
@@ -108,10 +112,14 @@ async def cancel_order(ticket: int = Path(..., description="Ticket ID of the pen
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error)
     except ConnectionError:
+        response = TradeResponse(success=False, error="Not connected to MT5")
+        log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "connection_error"})
         raise HTTPException(status_code=503, detail="Not connected to MT5")
     except HTTPException:
         raise
     except Exception as e:
+        response = TradeResponse(success=False, error=str(e))
+        log_trade({"action": "cancel_order", "ticket": ticket}, response, metadata={"state": "internal_error"})
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         _release_single_flight()
@@ -122,6 +130,12 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
     Modify an existing pending order.
     """
     if not settings.execution_enabled:
+        response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false)")
+        log_trade(
+            {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "blocked_execution_disabled"},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Execution disabled by policy (EXECUTION_ENABLED=false)"
@@ -132,6 +146,12 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
 
     gate_error = _acquire_single_flight()
     if gate_error:
+        response = TradeResponse(success=False, error=gate_error)
+        log_trade(
+            {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "blocked_overload_or_single_flight"},
+        )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=gate_error)
 
     def _modify_order():
@@ -170,10 +190,22 @@ async def modify_order(req: ModifyOrderRequest, ticket: int = Path(..., descript
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error)
     except ConnectionError:
+        response = TradeResponse(success=False, error="Not connected to MT5")
+        log_trade(
+            {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "connection_error"},
+        )
         raise HTTPException(status_code=503, detail="Not connected to MT5")
     except HTTPException:
         raise
     except Exception as e:
+        response = TradeResponse(success=False, error=str(e))
+        log_trade(
+            {"action": "modify_order", "ticket": ticket, "price": req.price, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "internal_error"},
+        )
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         _release_single_flight()

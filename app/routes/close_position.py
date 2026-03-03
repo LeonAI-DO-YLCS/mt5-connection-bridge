@@ -159,10 +159,14 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error or "Close request failed")
         except ConnectionError:
+            response = TradeResponse(success=False, error="Not connected to MT5")
+            log_trade(req, response, metadata={"state": "connection_error"})
             raise HTTPException(status_code=503, detail="Not connected to MT5")
         except HTTPException:
             raise
         except Exception as e:
+            response = TradeResponse(success=False, error=str(e))
+            log_trade(req, response, metadata={"state": "internal_error"})
             raise HTTPException(status_code=500, detail=str(e))
     finally:
         _release_single_flight()

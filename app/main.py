@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
         settings.execution_enabled,
     )
 
-    init_audit_logging()
+    init_audit_logging(retention_days=settings.metrics_retention_days)
     if not settings.disable_mt5_worker:
         start_worker(settings)
     yield

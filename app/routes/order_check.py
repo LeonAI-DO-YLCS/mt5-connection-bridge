@@ -3,6 +3,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, status
 
+from ..audit import log_task_event
 from ..main import symbol_map
 from ..mappers.trade_mapper import build_pending_order_request
 from ..models.order_check import OrderCheckResponse
@@ -15,11 +16,25 @@ router = APIRouter(tags=["execution"])
 @router.post("/order-check", response_model=OrderCheckResponse, summary="Pre-validate a pending order")
 async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
     if req.ticker not in symbol_map:
+        log_task_event(
+            "order_check",
+            request=req,
+            outcome="failed",
+            status_code=404,
+            details={"reason": "unknown_ticker"},
+        )
         raise HTTPException(status_code=404, detail=f"Unknown ticker '{req.ticker}'")
 
     mt5_symbol = symbol_map[req.ticker].mt5_symbol
 
     if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
+        log_task_event(
+            "order_check",
+            request=req,
+            outcome="failed",
+            status_code=503,
+            details={"reason": "mt5_disconnected"},
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="MT5 terminal not connected",
@@ -81,8 +96,30 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
 
     loop = asyncio.get_running_loop()
     try:
-        return await asyncio.wrap_future(submit(_execute_check), loop=loop)
+        response = await asyncio.wrap_future(submit(_execute_check), loop=loop)
+        log_task_event(
+            "order_check",
+            request=req,
+            outcome="success" if response.valid else "failed",
+            status_code=200 if response.valid else 422,
+            details=response.model_dump(),
+        )
+        return response
     except ConnectionError:
+        log_task_event(
+            "order_check",
+            request=req,
+            outcome="failed",
+            status_code=503,
+            details={"reason": "connection_error"},
+        )
         raise HTTPException(status_code=503, detail="Not connected to MT5")
     except Exception as e:
+        log_task_event(
+            "order_check",
+            request=req,
+            outcome="failed",
+            status_code=500,
+            details={"reason": str(e)},
+        )
         raise HTTPException(status_code=500, detail=str(e))

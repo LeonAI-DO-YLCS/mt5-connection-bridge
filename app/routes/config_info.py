@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from ..audit import log_task_event
 from ..main import settings, symbol_map
 from ..models.config_info import ConfigInfo
 from ..runtime_state import persist_execution_policy, resolve_runtime_state_path
@@ -41,4 +42,11 @@ async def config_info() -> ConfigInfo:
 async def update_execution_policy(req: ExecutionToggleRequest) -> ConfigInfo:
     settings.execution_enabled = req.execution_enabled
     persist_execution_policy(settings, req.execution_enabled)
+    log_task_event(
+        "execution_policy_update",
+        request=req,
+        outcome="success",
+        status_code=200,
+        details={"execution_enabled": req.execution_enabled},
+    )
     return _build_config_snapshot()

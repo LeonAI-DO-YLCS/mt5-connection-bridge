@@ -121,10 +121,14 @@ async def pending_order(req: PendingOrderRequest) -> TradeResponse:
                 detail=response.error or "Pending order request failed",
             )
         except ConnectionError:
+            response = TradeResponse(success=False, error="Not connected to MT5")
+            log_trade(req, response, metadata={"state": "connection_error"})
             raise HTTPException(status_code=503, detail="Not connected to MT5")
         except HTTPException:
             raise
         except Exception as e:
+            response = TradeResponse(success=False, error=str(e))
+            log_trade(req, response, metadata={"state": "internal_error"})
             raise HTTPException(status_code=500, detail=str(e))
     finally:
         _release_single_flight()

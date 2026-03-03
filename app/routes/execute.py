@@ -54,6 +54,8 @@ def _release_single_flight() -> None:
 @router.post("/execute", response_model=TradeResponse)
 async def execute_trade(req: TradeRequest) -> TradeResponse:
     if req.ticker not in symbol_map:
+        response = TradeResponse(success=False, error=f"Unknown ticker: {req.ticker}")
+        log_trade(req, response, metadata={"state": "blocked_unknown_ticker"})
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown ticker: {req.ticker}",
@@ -62,6 +64,8 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
     try:
         action_to_mt5_order_type(req.action)
     except ValueError as exc:
+        response = TradeResponse(success=False, error=str(exc))
+        log_trade(req, response, metadata={"state": "blocked_invalid_action"})
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
@@ -179,9 +183,19 @@ async def execute_trade(req: TradeRequest) -> TradeResponse:
         logger.info("MT5 order result: %s", response.model_dump())
         return response
     except ConnectionError as exc:
+        response = TradeResponse(success=False, error=str(exc))
+        log_trade(req, response, metadata={"state": "connection_error"})
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
+    except HTTPException as exc:
+        response = TradeResponse(success=False, error=str(exc.detail))
+        log_trade(req, response, metadata={"state": "http_error", "status_code": exc.status_code})
+        raise
+    except Exception as exc:
+        response = TradeResponse(success=False, error=str(exc))
+        log_trade(req, response, metadata={"state": "internal_error"})
+        raise
     finally:
         _release_single_flight()
