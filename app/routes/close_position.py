@@ -3,7 +3,11 @@ import logging
 import threading
 import math
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Header, status
+
+from ..execution.idempotency import compute_request_hash, idempotency_store
+from ..execution.lifecycle import OperationState, create_context, transition
+from ..execution.observability import emit_operation_log
 
 from ..messaging.codes import ErrorCode
 from ..messaging.envelope import MessageEnvelopeException
@@ -76,8 +80,28 @@ def _validate_close_volume(
 
 
 @router.post("/close-position", response_model=TradeResponse, summary="Close an open position")
-async def close_position(req: ClosePositionRequest) -> TradeResponse:
+async def close_position(
+    req: ClosePositionRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> TradeResponse:
+    # ── Phase 3: Lifecycle + Idempotency setup ──────────────────────────
+    request_hash = compute_request_hash(req.model_dump()) if idempotency_key else None
+    ctx = create_context("close_position", idempotency_key=idempotency_key, request_hash=request_hash)
+
+    if idempotency_key and request_hash:
+        cached = idempotency_store.check(idempotency_key, request_hash)
+        if cached is not None:
+            emit_operation_log(ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit")
+            return TradeResponse(**cached.response)
+        if idempotency_store.check_conflict(idempotency_key, request_hash):
+            raise MessageEnvelopeException(
+                code=ErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+                message="Idempotency key already used with different parameters.",
+            )
+
     if not settings.execution_enabled:
+        transition(ctx, OperationState.REJECTED)
+        emit_operation_log(ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled")
         response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false).")
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
         raise MessageEnvelopeException(
@@ -98,11 +122,15 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
 
     try:
         if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
+            transition(ctx, OperationState.REJECTED)
+            emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="not_connected")
             raise MessageEnvelopeException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 code=ErrorCode.MT5_DISCONNECTED,
                 message="MT5 terminal not connected",
             )
+
+        transition(ctx, OperationState.DISPATCHING)
 
         def _execute_in_worker() -> tuple[TradeResponse, str]:
             import MetaTrader5 as mt5  # type: ignore[import-untyped]
@@ -161,6 +189,16 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
             response, trade_state = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
             log_trade(req, response, metadata={"state": trade_state})
             logger.info("MT5 close order result: %s", response.model_dump())
+
+            if response.success:
+                transition(ctx, OperationState.ACCEPTED)
+            else:
+                transition(ctx, OperationState.REJECTED)
+            emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=trade_state)
+
+            if idempotency_key and request_hash:
+                idempotency_store.store(idempotency_key, request_hash, response.model_dump(), "close_position")
+
             if response.success:
                 return response
             if trade_state == "position_not_found":
@@ -190,6 +228,8 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
                 context={"ticket": req.ticket},
             )
         except ConnectionError:
+            transition(ctx, OperationState.FAILED_TERMINAL)
+            emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="connection_error")
             response = TradeResponse(success=False, error="Not connected to MT5")
             log_trade(req, response, metadata={"state": "connection_error"})
             raise MessageEnvelopeException(
@@ -200,6 +240,8 @@ async def close_position(req: ClosePositionRequest) -> TradeResponse:
         except MessageEnvelopeException:
             raise
         except Exception as e:
+            transition(ctx, OperationState.FAILED_TERMINAL)
+            emit_operation_log(ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error")
             response = TradeResponse(success=False, error=str(e))
             log_trade(req, response, metadata={"state": "internal_error"})
             raise

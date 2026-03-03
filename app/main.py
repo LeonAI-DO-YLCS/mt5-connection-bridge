@@ -75,6 +75,11 @@ app = FastAPI(
     dependencies=[Depends(verify_api_key)],
 )
 
+# Phase 3: HTTP compatibility middleware (FR-014 through FR-016).
+from .execution.compat_middleware import CompatibilityMiddleware  # noqa: E402
+
+app.add_middleware(CompatibilityMiddleware)
+
 
 @app.middleware("http")
 async def request_metrics_middleware(request: Request, call_next):
@@ -238,6 +243,7 @@ from .routes.pending_order import router as pending_order_router  # noqa: E402
 from .routes.order_check import router as order_check_router  # noqa: E402
 from .routes.broker_symbols import router as broker_symbols_router  # noqa: E402
 from .routes.broker_capabilities import router as broker_capabilities_router  # noqa: E402
+from .routes.readiness import router as readiness_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(prices_router)
@@ -259,6 +265,7 @@ app.include_router(pending_order_router)
 app.include_router(order_check_router)
 app.include_router(broker_symbols_router)
 app.include_router(broker_capabilities_router)
+app.include_router(readiness_router)
 
 _dashboard_dir = Path(__file__).resolve().parent.parent / "dashboard"
 if _dashboard_dir.exists():

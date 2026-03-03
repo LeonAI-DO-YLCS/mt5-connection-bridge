@@ -80,6 +80,25 @@ class Settings(BaseSettings):
         description="Automatically select symbols in MT5 Market Watch when scanning the broker catalog",
     )
 
+    # Readiness checks (feature 011-phase2-readiness-and-prerequisites)
+    tick_freshness_threshold_seconds: int = Field(
+        default=30,
+        alias="TICK_FRESHNESS_THRESHOLD_SECONDS",
+        description="Maximum age (seconds) for a tick before readiness flags it as stale",
+    )
+
+    # Execution hardening (feature 012-phase3-execution-hardening)
+    idempotency_ttl_seconds: int = Field(
+        default=3600,
+        alias="IDEMPOTENCY_TTL_SECONDS",
+        description="Lifetime in seconds for idempotency cache entries",
+    )
+    strict_http_semantics: bool = Field(
+        default=False,
+        alias="STRICT_HTTP_SEMANTICS",
+        description="When True, business failures return 4xx/5xx instead of HTTP 200",
+    )
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
