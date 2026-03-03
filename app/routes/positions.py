@@ -70,6 +70,12 @@ async def modify_sltp(req: ModifySLTPRequest, ticket: int = Path(..., descriptio
     Modify Stop Loss and/or Take Profit for an open position.
     """
     if not settings.execution_enabled:
+        response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false)")
+        log_trade(
+            {"action": "modify_sltp", "ticket": ticket, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "blocked_execution_disabled"},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Execution disabled by policy (EXECUTION_ENABLED=false)"
@@ -80,6 +86,12 @@ async def modify_sltp(req: ModifySLTPRequest, ticket: int = Path(..., descriptio
 
     gate_error = _acquire_single_flight()
     if gate_error:
+        response = TradeResponse(success=False, error=gate_error)
+        log_trade(
+            {"action": "modify_sltp", "ticket": ticket, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "blocked_overload_or_single_flight"},
+        )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=gate_error)
 
     def _modify_sltp():
@@ -112,10 +124,22 @@ async def modify_sltp(req: ModifySLTPRequest, ticket: int = Path(..., descriptio
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=response.error)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response.error)
     except ConnectionError:
+        response = TradeResponse(success=False, error="Not connected to MT5")
+        log_trade(
+            {"action": "modify_sltp", "ticket": ticket, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "connection_error"},
+        )
         raise HTTPException(status_code=503, detail="Not connected to MT5")
     except HTTPException:
         raise
     except Exception as e:
+        response = TradeResponse(success=False, error=str(e))
+        log_trade(
+            {"action": "modify_sltp", "ticket": ticket, "sl": req.sl, "tp": req.tp},
+            response,
+            metadata={"state": "internal_error"},
+        )
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         _release_single_flight()

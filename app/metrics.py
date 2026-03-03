@@ -12,7 +12,7 @@ from .models.metrics import MetricsSummary
 class RollingMetrics:
     def __init__(self, retention_days: int = 90, log_path: Path | None = None) -> None:
         self.retention_days = retention_days
-        self.log_path = log_path or (Path(__file__).resolve().parent.parent / "logs" / "metrics.jsonl")
+        self.log_path = log_path or (Path(__file__).resolve().parent.parent / "logs" / "dashboard" / "metrics.jsonl")
         self._lock = threading.Lock()
         self._start = datetime.now(timezone.utc)
         self._total_requests = 0

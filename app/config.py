@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     # Paths / logging
     symbols_config_path: str = Field(default="config/symbols.yaml", alias="SYMBOLS_CONFIG_PATH")
-    runtime_state_path: str = Field(default="logs/runtime_state.json", alias="RUNTIME_STATE_PATH")
+    runtime_state_path: str = Field(default="logs/bridge/runtime_state.json", alias="RUNTIME_STATE_PATH")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     # Test support

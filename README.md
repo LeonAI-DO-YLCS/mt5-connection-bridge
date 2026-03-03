@@ -13,7 +13,7 @@ Windows-native FastAPI microservice that connects MetaTrader 5 (MT5) to the Dock
 - `mt5-connection-bridge` runs on Windows host alongside MT5 terminal.
 - AI Hedge Fund backend (Docker/Linux) calls bridge over HTTP via `MT5_BRIDGE_URL`.
 - MT5 calls remain serialized through a dedicated worker queue (`app/mt5_worker.py`).
-- Operational metrics are captured in `logs/metrics.jsonl` with a rolling retention policy.
+- Operational metrics are captured in `logs/dashboard/metrics.jsonl` with a rolling retention policy.
 
 ## Project Layout
 
@@ -48,7 +48,7 @@ Copy `.env.example` to `.env` and set credentials/policies.
 Key feature flags:
 
 - `EXECUTION_ENABLED=false` (default safety gate)
-- `RUNTIME_STATE_PATH=logs/runtime_state.json` (persists runtime execution policy toggles)
+- `RUNTIME_STATE_PATH=logs/bridge/runtime_state.json` (persists runtime execution policy toggles)
 - `METRICS_RETENTION_DAYS=90`
 - `MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD=100`
 - `MAX_PRE_DISPATCH_SLIPPAGE_PCT=1.0`
@@ -61,6 +61,72 @@ cd mt5-connection-bridge
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
+
+## One-Command Launcher (Inspector Mode)
+
+Use the launcher for live terminal inspection plus persisted per-run artifacts:
+
+```bash
+cd mt5-connection-bridge
+./scripts/launch_bridge_dashboard.sh
+```
+
+For WSL2 users (recommended for MT5 connection on Windows host), use:
+
+```bash
+cd mt5-connection-bridge
+./scripts/launch_bridge_windows.sh
+```
+
+WSL behavior:
+- launcher auto-selects Windows-host runtime mode when running in WSL and `LAUNCHER_PREFER_WINDOWS=true`
+- PowerShell runner: `scripts/windows/launch_bridge_windows.ps1`
+- Windows Python resolution order: `.venv-win\\Scripts\\python.exe`, `.venv\\Scripts\\python.exe`, then `python` on Windows PATH
+- Optional override: `MT5_WINDOWS_PYTHON` in `.env`
+- Automatic setup: if required modules are missing, launcher bootstraps `.venv-win` (controlled by `LAUNCHER_AUTO_SETUP_WINDOWS_VENV=true`)
+- Recommended Windows Python: 3.10-3.12 for `MetaTrader5` compatibility
+
+The launcher prints:
+- bridge endpoint URL
+- dashboard URL
+- run-scoped log bundle path
+
+Interactive TUI behavior:
+- on interactive terminals (`LAUNCHER_TUI_MODE=auto`), launcher renders a live status screen
+- panel includes runtime mode, process chain, runtime/listener PIDs, API health, dashboard status, and artifact paths
+- fixed-screen rendering with color-coded sections and change-only redraws (no growing log stream in the panel)
+- set `LAUNCHER_TUI_MODE=false` to force classic streaming logs
+- probe cadence is configurable with `LAUNCHER_TUI_PROBE_SECONDS` (default `5`)
+- access logs are persisted by default in launcher runtime (`LAUNCHER_UVICORN_ACCESS_LOG=true`)
+
+Per-run artifacts are written to:
+
+```text
+logs/bridge/launcher/<run-id>/
+├── launcher.log
+├── bridge.stdout.log
+├── bridge.stderr.log
+└── session.json
+```
+
+Dashboard event artifacts are written to:
+
+```text
+logs/dashboard/
+├── trades.jsonl
+├── tasks.jsonl
+└── metrics.jsonl
+```
+
+Runtime reliability policy:
+- one automatic restart attempt on unexpected runtime crash
+- safe non-success exit if restart attempt also fails
+- lifecycle and failure events persisted in the same run bundle
+
+Security/access notes:
+- launcher sessions are network-access enabled by default
+- authenticated access remains required for operations
+- failed authentication attempts are logged for inspection (no lockout/throttling policy in launcher scope)
 
 ## API
 
