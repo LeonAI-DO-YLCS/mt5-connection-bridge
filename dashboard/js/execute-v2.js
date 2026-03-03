@@ -122,6 +122,9 @@ export async function renderExecute(contentEl) {
           </div>
         </div>
 
+        <!-- Phase 2: Readiness Panel -->
+        <div id="readinessContainer" class="mt-4"></div>
+
         <button id="execSubmitBtn" class="btn btn-primary mt-4 w-full">Submit</button>
       </form>
     </div>
@@ -349,13 +352,18 @@ export async function renderExecute(contentEl) {
     applyTradeModeUI();
     await refreshTick();
     triggerValidation();
+    await refreshReadinessPanel();
   };
 
-  execType.addEventListener("change", handleTypeChange);
+  execType.addEventListener("change", () => {
+    handleTypeChange();
+    refreshReadinessPanel();
+  });
   execTicker.addEventListener("change", handleTickerChange);
   [execVolume, execPrice, execSL, execTP, execComment].forEach((input) => {
     input.addEventListener("input", triggerValidation);
   });
+  execVolume.addEventListener("change", () => refreshReadinessPanel());
 
   // T036: Build payload – include mt5_symbol_direct for broker-native symbols
   function buildExecutePayload(marketPrice) {
@@ -434,6 +442,110 @@ export async function renderExecute(contentEl) {
     }
   }
 
+  // ── Phase 2: Readiness Panel integration ──────────────────────────────
+  const readinessContainer = document.getElementById("readinessContainer");
+  let _readinessData = null;
+  let _readinessWarningAck = false;
+
+  function _getReadinessContext() {
+    const direction = ["buy", "buy_limit", "buy_stop", "cover"].includes(execType.value) ? "buy" : "sell";
+    return {
+      operation: execType.value,
+      symbol: execTicker.value || undefined,
+      direction,
+      volume: execVolume.value ? Number(execVolume.value) : undefined,
+    };
+  }
+
+  async function refreshReadinessPanel() {
+    if (!readinessContainer) return;
+    const ctx = _getReadinessContext();
+    try {
+      const params = new URLSearchParams();
+      if (ctx.operation) params.set("operation", ctx.operation);
+      if (ctx.symbol) params.set("symbol", ctx.symbol);
+      if (ctx.direction) params.set("direction", ctx.direction);
+      if (ctx.volume) params.set("volume", ctx.volume);
+      const qs = params.toString();
+      const url = `/readiness${qs ? "?" + qs : ""}`;
+      const apiKey = window.__bridgeApiKey || localStorage.getItem("mt5_api_key") || "";
+      const resp = await fetch(url, { headers: { "X-API-KEY": apiKey } });
+      if (!resp.ok) {
+        _readinessData = null;
+        readinessContainer.innerHTML = `<div class="readiness-panel readiness-error"><span>⚠️ Readiness check failed (HTTP ${resp.status})</span></div>`;
+        return;
+      }
+      _readinessData = await resp.json();
+      _readinessWarningAck = false;
+      _renderReadiness(_readinessData, ctx);
+      _applyReadinessGating();
+    } catch (err) {
+      _readinessData = null;
+      readinessContainer.innerHTML = `<div class="readiness-panel readiness-error"><span>⚠️ Cannot reach readiness endpoint</span></div>`;
+    }
+  }
+
+  function _renderReadiness(data, ctx) {
+    const icons = { ready: "✅", degraded: "⚠️", blocked: "🚫" };
+    const checkIcons = { pass: "✅", warn: "⚠️", fail: "❌", unknown: "❓" };
+    const icon = icons[data.overall_status] || "❓";
+    const label = data.overall_status.charAt(0).toUpperCase() + data.overall_status.slice(1);
+    const ts = data.evaluated_at ? new Date(data.evaluated_at).toLocaleTimeString() : "";
+
+    let html = `<div class="readiness-panel readiness-${data.overall_status}">`;
+    html += `<div class="readiness-header"><span class="readiness-status-badge">${icon} ${label}</span>`;
+    html += `<span class="readiness-freshness">Evaluated ${ts} <button class="readiness-refresh-btn" title="Refresh">↻</button></span></div>`;
+
+    if (data.blockers?.length) {
+      html += `<div class="readiness-blockers"><h4 class="readiness-section-title">🚫 Blockers</h4>`;
+      for (const b of data.blockers) {
+        html += `<div class="readiness-blocker-card"><div class="readiness-check-message">${_esc(b.user_message)}</div><div class="readiness-check-action">${_esc(b.action)}</div></div>`;
+      }
+      html += `</div>`;
+    }
+    if (data.warnings?.length) {
+      html += `<div class="readiness-warnings"><h4 class="readiness-section-title">⚠️ Warnings</h4>`;
+      for (const w of data.warnings) {
+        html += `<div class="readiness-warning-card"><div class="readiness-check-message">${_esc(w.user_message)}</div><div class="readiness-check-action">${_esc(w.action)}</div></div>`;
+      }
+      html += `<label class="readiness-ack-label"><input type="checkbox" class="readiness-ack-checkbox" /> I acknowledge the warnings</label></div>`;
+    }
+
+    html += `<details class="readiness-details"><summary>All Checks (${data.checks.length})</summary><div class="readiness-check-list">`;
+    for (const c of data.checks) {
+      html += `<div class="readiness-check-item readiness-check-${c.status}"><span>${checkIcons[c.status] || "❓"}</span> <span class="readiness-check-id">${_esc(c.check_id)}</span> <span>${_esc(c.user_message)}</span></div>`;
+    }
+    html += `</div></details></div>`;
+    readinessContainer.innerHTML = html;
+
+    readinessContainer.querySelector(".readiness-refresh-btn")?.addEventListener("click", () => refreshReadinessPanel());
+    readinessContainer.querySelector(".readiness-ack-checkbox")?.addEventListener("change", (e) => {
+      _readinessWarningAck = e.target.checked;
+      _applyReadinessGating();
+    });
+  }
+
+  function _applyReadinessGating() {
+    if (!_readinessData) return;
+    const isBlocked = _readinessData.overall_status === "blocked";
+    const isDegraded = _readinessData.overall_status === "degraded" && !_readinessWarningAck;
+    if (isBlocked || isDegraded) {
+      execSubmitBtn.disabled = true;
+      execSubmitBtn.style.opacity = "0.5";
+    }
+    // Note: trade mode UI may also disable the button; don't re-enable if that's the case
+  }
+
+  function _esc(str) {
+    if (!str) return "";
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // Listen for readiness-ack-change events (from standalone readiness.js if used)
+  readinessContainer?.addEventListener("readiness-ack-change", () => _applyReadinessGating());
+
   execSubmitBtn.addEventListener("click", async () => {
     const val = execTicker.value;
     if (!val) {
@@ -487,9 +599,12 @@ export async function renderExecute(contentEl) {
       execSubmitBtn.disabled = false;
       execSubmitBtn.innerText = "Submit";
       applyTradeModeUI(); // re-apply trade mode state after submit
+      await refreshReadinessPanel();
     }
   });
 
   handleTypeChange();
   applyVolumeConstraints();
+  // Initial readiness check
+  refreshReadinessPanel();
 }

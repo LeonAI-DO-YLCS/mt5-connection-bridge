@@ -304,3 +304,155 @@ td {
   gap: 0.6rem;
   margin-top: 1rem;
 }
+
+/* Phase 2: Readiness Panel ───────────────────────────────────────────────── */
+
+.readiness-panel {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  background: rgba(16, 35, 56, 0.7);
+}
+
+.readiness-ready {
+  border-left: 4px solid var(--ok);
+}
+.readiness-degraded {
+  border-left: 4px solid var(--warn);
+}
+.readiness-blocked {
+  border-left: 4px solid var(--danger);
+}
+.readiness-error {
+  border-left: 4px solid var(--danger);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.readiness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.readiness-status-badge {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.readiness-freshness {
+  color: var(--muted);
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.readiness-refresh-btn {
+  border: none;
+  background: var(--card);
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+.readiness-refresh-btn:hover {
+  background: rgba(90, 216, 255, 0.2);
+}
+
+.readiness-section-title {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.readiness-blocker-card,
+.readiness-warning-card {
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.86rem;
+}
+
+.readiness-blocker-card {
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+.readiness-warning-card {
+  background: rgba(255, 203, 107, 0.12);
+  border: 1px solid rgba(255, 203, 107, 0.3);
+}
+
+.readiness-check-message {
+  color: var(--text);
+}
+.readiness-check-action {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.readiness-ack-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: var(--warn);
+}
+.readiness-ack-checkbox {
+  accent-color: var(--warn);
+}
+
+.readiness-details {
+  margin-top: 0.6rem;
+}
+.readiness-details summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: var(--muted);
+  user-select: none;
+}
+.readiness-details summary:hover {
+  color: var(--text);
+}
+
+.readiness-check-list {
+  margin-top: 0.4rem;
+}
+.readiness-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2px 0;
+  font-size: 0.82rem;
+}
+.readiness-check-id {
+  color: var(--muted);
+  min-width: 160px;
+  font-family: monospace;
+  font-size: 0.78rem;
+}
+.readiness-check-pass {
+  color: var(--text);
+}
+.readiness-check-warn {
+  color: var(--warn);
+}
+.readiness-check-fail {
+  color: var(--danger);
+}
+.readiness-check-unknown {
+  color: var(--muted);
+}
+
+.readiness-error-message {
+  color: var(--danger);
+  padding: 0.4rem 0;
+  font-size: 0.86rem;
+}
