@@ -3,6 +3,7 @@ from .broker_symbol import BrokerSymbol
 from .close_position import ClosePositionRequest
 from .config_info import ConfigInfo
 from .deal import Deal
+from .diagnostics import RuntimeDiagnostics, SymbolDiagnostic, SymbolsDiagnosticsResponse
 from .health import HealthStatus
 from .historical_order import HistoricalOrder
 from .log_entry import LogEntry, LogsResponse
@@ -26,6 +27,9 @@ __all__ = [
     "ClosePositionRequest",
     "ConfigInfo",
     "Deal",
+    "RuntimeDiagnostics",
+    "SymbolDiagnostic",
+    "SymbolsDiagnosticsResponse",
     "HealthStatus",
     "HistoricalOrder",
     "LogEntry",

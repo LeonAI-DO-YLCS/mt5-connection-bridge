@@ -4,6 +4,7 @@ MT5 Bridge — Application settings and configuration.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -61,12 +62,18 @@ class Settings(BaseSettings):
 
     # Paths / logging
     symbols_config_path: str = Field(default="config/symbols.yaml", alias="SYMBOLS_CONFIG_PATH")
+    runtime_state_path: str = Field(default="logs/runtime_state.json", alias="RUNTIME_STATE_PATH")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     # Test support
     disable_mt5_worker: bool = Field(default=False, alias="DISABLE_MT5_WORKER")
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
 
 
 def load_symbol_map(config_path: str | Path | None = None) -> dict[str, SymbolEntry]:

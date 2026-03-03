@@ -10,12 +10,12 @@ from __future__ import annotations
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
 
-from .config import Settings
+from .config import get_settings
 
 _api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
 # Singleton settings — loaded once on import.
-_settings = Settings()
+_settings = get_settings()
 
 
 async def verify_api_key(

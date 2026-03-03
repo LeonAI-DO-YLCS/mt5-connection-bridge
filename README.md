@@ -48,6 +48,7 @@ Copy `.env.example` to `.env` and set credentials/policies.
 Key feature flags:
 
 - `EXECUTION_ENABLED=false` (default safety gate)
+- `RUNTIME_STATE_PATH=logs/runtime_state.json` (persists runtime execution policy toggles)
 - `METRICS_RETENTION_DAYS=90`
 - `MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD=100`
 - `MAX_PRE_DISPATCH_SLIPPAGE_PCT=1.0`
@@ -82,6 +83,11 @@ X-API-KEY: <MT5_BRIDGE_API_KEY>
 - `GET /config`
 - `GET /worker/state`
 - `GET /metrics`
+- `PUT /config/execution` (runtime execution policy toggle + persistence)
+- `GET /diagnostics/runtime` (policy source, fingerprint, uptime, queue/worker state)
+- `GET /diagnostics/symbols` (per-symbol reason codes and broker-resolution diagnostics)
+
+Runtime error responses include `X-Error-Code` headers for machine-readable handling.
 
 ## Dashboard
 
@@ -125,6 +131,31 @@ pytest tests/contract
 pytest tests/performance
 ```
 
+Fast local smoke/unit cycle:
+
+```bash
+./scripts/test-fast.sh
+```
+
+Full regression:
+
+```bash
+./scripts/test-full.sh
+```
+
+## Operations
+
+Start, stop, restart, and smoke-check scripts:
+
+```bash
+./scripts/start_bridge.sh --background
+./scripts/stop_bridge.sh
+./scripts/restart_bridge.sh
+./scripts/smoke_bridge.sh
+```
+
+These scripts read `.env` safely without shell-sourcing, so special characters in credentials do not break execution.
+
 ## Validation Snapshot
 
 Latest local run on **March 2, 2026**:
@@ -140,3 +171,11 @@ Latest local run on **March 2, 2026**:
 - `422`: request validation failure.
 - `503`: MT5 unavailable or connection failure.
 - `success=false` on `/execute`: policy gate, slippage rejection, or overload protection triggered.
+
+## Runtime Hardening Rules
+
+- Persist policy changes through `PUT /config/execution`; do not rely on in-memory toggles.
+- Use `GET /diagnostics/symbols` before changing symbol maps when “symbol not found” appears.
+- Validate health with `./scripts/smoke_bridge.sh` after every restart.
+- Prefer `./scripts/stop_bridge.sh` over ad-hoc process killing by PID.
+- Keep test execution tiered: `test-fast.sh` for local loop, `test-full.sh` before merge.

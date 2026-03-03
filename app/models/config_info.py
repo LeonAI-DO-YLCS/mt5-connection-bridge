@@ -11,6 +11,7 @@ class ConfigInfo(BaseModel):
     log_level: str
     symbol_count: int = Field(ge=0)
     symbols_config_path: str
+    runtime_state_path: str
     execution_enabled: bool
     metrics_retention_days: int = Field(ge=1)
     multi_trade_overload_queue_threshold: int = Field(ge=1)

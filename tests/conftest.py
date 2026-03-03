@@ -110,6 +110,7 @@ def client(monkeypatch, tmp_path, fake_mt5):
 
     logs_dir = tmp_path / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
+    settings.runtime_state_path = str(logs_dir / "runtime_state.json")
     monkeypatch.setattr(audit, "_LOG_DIR", logs_dir)
 
     metrics_store.log_path = logs_dir / "metrics.jsonl"
@@ -188,3 +189,28 @@ def reset_execute_state():
     execute_route._inflight_requests = 0
     yield
     execute_route._inflight_requests = 0
+
+
+def pytest_collection_modifyitems(config, items):
+    smoke_files = {
+        "tests/unit/test_auth.py",
+        "tests/integration/test_health_route.py",
+        "tests/integration/test_config_route.py",
+        "tests/integration/test_symbols_route.py",
+        "tests/integration/test_tick_route.py",
+    }
+    for item in items:
+        path = str(item.fspath).replace("\\", "/")
+        if "/tests/unit/" in path:
+            item.add_marker(pytest.mark.unit)
+        elif "/tests/integration/" in path:
+            item.add_marker(pytest.mark.integration)
+        elif "/tests/contract/" in path:
+            item.add_marker(pytest.mark.contract)
+        elif "/tests/performance/" in path:
+            item.add_marker(pytest.mark.performance)
+
+        for suffix in smoke_files:
+            if path.endswith(suffix):
+                item.add_marker(pytest.mark.smoke)
+                break
