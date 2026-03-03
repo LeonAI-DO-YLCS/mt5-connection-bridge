@@ -2,16 +2,28 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
+def test_feature_contract_document_exists_and_lists_006_endpoints():
+    contract = Path("specs/006-mt5-bridge-dashboard/contracts/api-contracts.md")
+    body = contract.read_text(encoding="utf-8")
 
-
-def test_openapi_schema_has_required_sections():
-    contract = Path("specs/001-mt5-bridge-dashboard/contracts/openapi.yaml")
-    doc = yaml.safe_load(contract.read_text(encoding="utf-8"))
-
-    assert doc["openapi"].startswith("3.")
-    assert "components" in doc
-    assert "schemas" in doc["components"]
+    required_paths = [
+        "GET /account",
+        "GET /positions",
+        "GET /orders",
+        "GET /tick/{ticker}",
+        "GET /terminal",
+        "POST /close-position",
+        "DELETE /orders/{ticket}",
+        "PUT /positions/{ticket}/sltp",
+        "PUT /orders/{ticket}",
+        "POST /pending-order",
+        "POST /order-check",
+        "GET /history/deals",
+        "GET /history/orders",
+        "GET /broker-symbols",
+    ]
+    for path in required_paths:
+        assert path in body
 
 
 def test_response_payloads_include_required_keys(client, auth_headers):

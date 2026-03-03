@@ -6,6 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from ..models.trade import TradeRequest
+from ..models.pending_order import PendingOrderRequest
 
 
 def _mt5_const(name: str, default: int) -> int:
@@ -83,9 +84,100 @@ def build_order_request(
         "volume": normalized_volume,
         "type": order_type,
         "price": float(trade_req.current_price),
+        "sl": float(trade_req.sl) if trade_req.sl else 0.0,
+        "tp": float(trade_req.tp) if trade_req.tp else 0.0,
         "deviation": deviation if deviation > 0 else 20,
         "magic": 88001,
         "comment": "ai-hedge-fund mt5 bridge",
         "type_time": order_time_gtc,
         "type_filling": order_filling_ioc,
+    }
+
+
+def build_close_request(position: Any, volume: float | None, symbol_info: Any) -> dict[str, Any]:
+    """Build MT5 `order_send` payload for closing a position."""
+    trade_action_deal = _mt5_const("TRADE_ACTION_DEAL", 1)
+    
+    # Counter-order type
+    order_type_sell = _mt5_const("ORDER_TYPE_SELL", 1)
+    order_type_buy = _mt5_const("ORDER_TYPE_BUY", 0)
+    
+    # MT5 position.type is 0 for BUY, 1 for SELL
+    if position.type == 0:  # Buy
+        counter_type = order_type_sell
+    else:
+        counter_type = order_type_buy
+        
+    vol_to_close = float(volume) if volume is not None else float(position.volume)
+    # For explicit partial close requests, keep the caller volume unchanged after validation.
+    # Full-close requests still normalize to symbol constraints.
+    normalized_volume = vol_to_close if volume is not None else normalize_lot_size(vol_to_close, symbol_info)
+    
+    return {
+        "action": trade_action_deal,
+        "symbol": position.symbol,
+        "volume": normalized_volume,
+        "type": counter_type,
+        "position": position.ticket,
+        "magic": 88001,
+        "comment": "ai-hedge-fund mt5 bridge close",
+    }
+
+
+def build_modify_sltp_request(ticket: int, sl: float | None, tp: float | None) -> dict[str, Any]:
+    """Build MT5 payload for modifying Stop Loss and Take Profit of a position."""
+    trade_action_sltp = _mt5_const("TRADE_ACTION_SLTP", 6)
+    return {
+        "action": trade_action_sltp,
+        "position": ticket,
+        "sl": float(sl) if sl is not None else 0.0,
+        "tp": float(tp) if tp is not None else 0.0,
+    }
+
+
+def build_pending_order_request(req: PendingOrderRequest, mt5_symbol: str, symbol_info: Any) -> dict[str, Any]:
+    """Build MT5 payload for placing a pending order."""
+    trade_action_pending = _mt5_const("TRADE_ACTION_PENDING", 5)
+    order_time_gtc = _mt5_const("ORDER_TIME_GTC", 0)
+    order_filling_ioc = _mt5_const("ORDER_FILLING_IOC", 2)
+    
+    normalized_volume = normalize_lot_size(req.volume, symbol_info)
+    from .order_mapper import pending_type_to_mt5_const
+    order_type = pending_type_to_mt5_const(req.type)
+    
+    return {
+        "action": trade_action_pending,
+        "symbol": mt5_symbol,
+        "volume": normalized_volume,
+        "type": order_type,
+        "price": float(req.price),
+        "sl": float(req.sl) if req.sl else 0.0,
+        "tp": float(req.tp) if req.tp else 0.0,
+        "magic": 88001,
+        "comment": req.comment or "ai-hedge-fund pending order",
+        "type_time": order_time_gtc,
+        "type_filling": order_filling_ioc,
+    }
+
+
+def build_modify_order_request(ticket: int, price: float | None, sl: float | None, tp: float | None) -> dict[str, Any]:
+    """Build MT5 payload for modifying a pending order."""
+    trade_action_modify = _mt5_const("TRADE_ACTION_MODIFY", 7)
+    payload = {
+        "action": trade_action_modify,
+        "order": ticket,
+        "sl": float(sl) if sl is not None else 0.0,
+        "tp": float(tp) if tp is not None else 0.0,
+    }
+    if price is not None:
+        payload["price"] = float(price)
+    return payload
+
+
+def build_cancel_order_request(ticket: int) -> dict[str, Any]:
+    """Build MT5 payload for removing a pending order."""
+    trade_action_remove = _mt5_const("TRADE_ACTION_REMOVE", 8)
+    return {
+        "action": trade_action_remove,
+        "order": ticket,
     }

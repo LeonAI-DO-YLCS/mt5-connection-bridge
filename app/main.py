@@ -81,6 +81,16 @@ from .routes.metrics import router as metrics_router  # noqa: E402
 from .routes.prices import router as prices_router  # noqa: E402
 from .routes.symbols import router as symbols_router  # noqa: E402
 from .routes.worker import router as worker_router  # noqa: E402
+from .routes.positions import router as positions_router  # noqa: E402
+from .routes.orders import router as orders_router  # noqa: E402
+from .routes.account import router as account_router  # noqa: E402
+from .routes.tick import router as tick_router  # noqa: E402
+from .routes.terminal import router as terminal_router  # noqa: E402
+from .routes.history import router as history_router  # noqa: E402
+from .routes.close_position import router as close_position_router  # noqa: E402
+from .routes.pending_order import router as pending_order_router  # noqa: E402
+from .routes.order_check import router as order_check_router  # noqa: E402
+from .routes.broker_symbols import router as broker_symbols_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(prices_router)
@@ -90,6 +100,16 @@ app.include_router(logs_router)
 app.include_router(config_info_router)
 app.include_router(worker_router)
 app.include_router(metrics_router)
+app.include_router(positions_router)
+app.include_router(orders_router)
+app.include_router(account_router)
+app.include_router(tick_router)
+app.include_router(terminal_router)
+app.include_router(history_router)
+app.include_router(close_position_router)
+app.include_router(pending_order_router)
+app.include_router(order_check_router)
+app.include_router(broker_symbols_router)
 
 _dashboard_dir = Path(__file__).resolve().parent.parent / "dashboard"
 if _dashboard_dir.exists():
