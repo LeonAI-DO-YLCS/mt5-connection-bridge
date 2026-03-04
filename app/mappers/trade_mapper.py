@@ -8,6 +8,9 @@ from typing import Any
 
 from ..models.pending_order import PendingOrderRequest
 from ..models.trade import TradeRequest
+from ..execution.comment import CommentNormalizer
+
+_comment_normalizer = CommentNormalizer()
 
 logger = logging.getLogger("mt5_bridge.trade_mapper")
 
@@ -170,7 +173,7 @@ def build_order_request(
         "tp": float(trade_req.tp) if trade_req.tp else 0.0,
         "deviation": deviation if deviation > 0 else 20,
         "magic": 88001,
-        "comment": "ai-hedge-fund mt5 bridge",
+        "comment": _comment_normalizer.normalize("ai-hedge-fund mt5 bridge"),
         "type_time": order_time_gtc,
         "type_filling": resolve_filling_mode(symbol_info),  # T005–T007: dynamic resolution
     }
@@ -202,7 +205,7 @@ def build_close_request(position: Any, volume: float | None, symbol_info: Any) -
         "type": counter_type,
         "position": position.ticket,
         "magic": 88001,
-        "comment": "ai-hedge-fund mt5 bridge close",
+        "comment": _comment_normalizer.normalize("ai-hedge-fund mt5 bridge close"),
         "type_filling": resolve_filling_mode(symbol_info),  # T010: dynamic filling mode for close
     }
 
@@ -236,7 +239,7 @@ def build_pending_order_request(req: PendingOrderRequest, mt5_symbol: str, symbo
         "sl": float(req.sl) if req.sl else 0.0,
         "tp": float(req.tp) if req.tp else 0.0,
         "magic": 88001,
-        "comment": req.comment or "ai-hedge-fund pending order",
+        "comment": _comment_normalizer.normalize(req.comment or "ai-hedge-fund pending order"),
         "type_time": order_time_gtc,
         "type_filling": resolve_filling_mode(symbol_info),  # T008–T009: dynamic resolution
     }

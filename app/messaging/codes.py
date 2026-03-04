@@ -179,6 +179,26 @@ class ErrorCode(Enum):
         default_http_status=400,
         category="error",
     )
+    MT5_REQUEST_COMMENT_INVALID_RECOVERED = _CodeMeta(
+        domain="MT5",
+        default_title="Broker rejected note format; position closed successfully",
+        default_message="The broker's terminal rejected the comment field on the close request. The position was closed successfully using a compatibility format without the comment.",
+        default_action="No action required.",
+        default_severity="low",
+        default_retryable=False,
+        default_http_status=200,
+        category="warning",
+    )
+    MT5_REQUEST_COMMENT_INVALID = _CodeMeta(
+        domain="MT5",
+        default_title="Could not close position due to broker request-format restrictions",
+        default_message="The close request failed even after removing the comment field. The broker may have additional restrictions on the order format.",
+        default_action="Contact support with the tracking ID shown above.",
+        default_severity="high",
+        default_retryable=False,
+        default_http_status=400,
+        category="error",
+    )
     OVERLOAD_OR_SINGLE_FLIGHT = _CodeMeta(
         domain="REQUEST",
         default_title="Execution queue busy",

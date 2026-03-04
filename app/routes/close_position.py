@@ -8,6 +8,7 @@ from fastapi import APIRouter, Header, status
 from ..execution.idempotency import compute_request_hash, idempotency_store
 from ..execution.lifecycle import OperationState, create_context, transition
 from ..execution.observability import emit_operation_log
+from ..execution.comment import matches_invalid_comment_signature
 
 from ..messaging.codes import ErrorCode
 from ..messaging.envelope import MessageEnvelopeException
@@ -137,28 +138,56 @@ async def close_position(
 
             positions = mt5.positions_get(ticket=req.ticket)
             if positions is None or len(positions) == 0:
-                return TradeResponse(success=False, error=f"Position {req.ticket} not found"), "position_not_found"
+                return TradeResponse(success=False, error=f"Position {req.ticket} not found"), "position_not_found", "none", None, None
             
             position = positions[0]
             mt5_symbol = position.symbol
             
             symbol_info = mt5.symbol_info(mt5_symbol)
             if symbol_info is None:
-                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol}"), "symbol_missing"
+                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol}"), "symbol_missing", "none", None, None
 
             volume_error = _validate_close_volume(req.volume, float(position.volume), symbol_info)
             if volume_error:
-                return TradeResponse(success=False, error=volume_error), "invalid_volume"
+                return TradeResponse(success=False, error=volume_error), "invalid_volume", "none", None, None
 
             try:
                 close_request = build_close_request(position, req.volume, symbol_info)
             except ValueError as exc:
-                return TradeResponse(success=False, error=str(exc)), "invalid_volume"
+                return TradeResponse(success=False, error=str(exc)), "invalid_volume", "none", None, None
             logger.info("Submitting MT5 close order: %s", close_request)
 
+            # ── Attempt 1: with normalized comment ──
             result = mt5.order_send(close_request)
+            attempt_variant = "with_comment"
+
             if result is None:
-                return TradeResponse(success=False, error=f"order_send returned None: {mt5.last_error()}"), "order_send_none"
+                last_err = mt5.last_error()
+                err_code = last_err[0] if last_err else 0
+                err_msg = last_err[1] if last_err and len(last_err) > 1 else ""
+
+                if matches_invalid_comment_signature(err_code, err_msg):
+                    # ── Attempt 2: without comment (adaptive fallback) ──
+                    close_request.pop("comment", None)
+                    result = mt5.order_send(close_request)
+                    attempt_variant = "with_comment → without_comment"
+
+                    if result is None:
+                        return (
+                            TradeResponse(success=False, error="Could not close position due to broker request-format restrictions"),
+                            "unrecoverable",
+                            attempt_variant,
+                            err_code,
+                            err_msg,
+                        )
+                else:
+                    return (
+                        TradeResponse(success=False, error=f"order_send returned None: {mt5.last_error()}"),
+                        "order_send_none",
+                        attempt_variant,
+                        None,
+                        None,
+                    )
 
             retcode_done = int(getattr(mt5, "TRADE_RETCODE_DONE", 10009))
             if int(getattr(result, "retcode", -1)) != retcode_done:
@@ -171,8 +200,12 @@ async def close_position(
                         ),
                     ),
                     "order_rejected",
+                    attempt_variant,
+                    None,
+                    None,
                 )
 
+            trade_state = "comment_recovered" if "→" in attempt_variant else "fill_confirmed"
             return (
                 TradeResponse(
                     success=True,
@@ -181,26 +214,69 @@ async def close_position(
                     ticket_id=int(getattr(result, "order", 0) or 0),
                     error=None,
                 ),
-                "fill_confirmed",
+                trade_state,
+                attempt_variant,
+                None,
+                None,
             )
 
         loop = asyncio.get_running_loop()
         try:
-            response, trade_state = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
+            response, trade_state, attempt_variant, mt5_err_code, mt5_err_msg = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
             log_trade(req, response, metadata={"state": trade_state})
             logger.info("MT5 close order result: %s", response.model_dump())
 
-            if response.success:
-                transition(ctx, OperationState.ACCEPTED)
+            if trade_state == "comment_recovered":
+                transition(ctx, OperationState.RECOVERED)
+                emit_operation_log(
+                    ctx,
+                    code="MT5_REQUEST_COMMENT_INVALID_RECOVERED",
+                    final_outcome="recovered",
+                    attempt_variant=attempt_variant,
+                    mt5_last_error_code=mt5_err_code,
+                    mt5_last_error_message=mt5_err_msg
+                )
+            elif trade_state == "unrecoverable":
+                transition(ctx, OperationState.FAILED_TERMINAL)
+                emit_operation_log(
+                    ctx, 
+                    code="MT5_REQUEST_COMMENT_INVALID", 
+                    final_outcome="unrecoverable",
+                    attempt_variant=attempt_variant,
+                    mt5_last_error_code=mt5_err_code,
+                    mt5_last_error_message=mt5_err_msg
+                )
             else:
-                transition(ctx, OperationState.REJECTED)
-            emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=trade_state)
+                if response.success:
+                    transition(ctx, OperationState.ACCEPTED)
+                else:
+                    transition(ctx, OperationState.REJECTED)
+                emit_operation_log(
+                    ctx, 
+                    code="REQUEST_OK" if response.success else "REQUEST_REJECTED", 
+                    final_outcome=trade_state,
+                    attempt_variant=attempt_variant
+                )
 
             if idempotency_key and request_hash:
                 idempotency_store.store(idempotency_key, request_hash, response.model_dump(), "close_position")
 
             if response.success:
                 return response
+
+            if trade_state == "unrecoverable":
+                raise MessageEnvelopeException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    code=ErrorCode.MT5_REQUEST_COMMENT_INVALID,
+                    message=response.error or "Could not close position due to broker request-format restrictions",
+                    context={
+                        "ticket": req.ticket,
+                        "attempt_variant": attempt_variant,
+                        "mt5_last_error_code": mt5_err_code,
+                        "mt5_last_error_message": mt5_err_msg
+                    },
+                )
+
             if trade_state == "position_not_found":
                 raise MessageEnvelopeException(
                     status_code=status.HTTP_404_NOT_FOUND,

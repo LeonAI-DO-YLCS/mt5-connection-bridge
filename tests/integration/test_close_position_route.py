@@ -6,6 +6,7 @@ from unittest.mock import patch
 def enable_worker(monkeypatch):
     from app.main import settings
     monkeypatch.setattr(settings, "disable_mt5_worker", False)
+    monkeypatch.setenv("STRICT_HTTP_SEMANTICS", "true")
     yield
 
 @pytest.fixture
@@ -45,12 +46,12 @@ def test_close_position_success(client, auth_headers, mock_mt5_submit, mock_get_
         "error": None
     }
     
-    # Actually `submit` returns what `_execute_in_worker` returns which is a tuple! `(TradeResponse, str)`. Wait, we just mock the inner worker's return tuple
+    # Actually `submit` returns what `_execute_in_worker` returns which is a 5-tuple!
     from app.models.trade import TradeResponse
     from app.main import settings
     settings.execution_enabled = True
 
-    mock_tuple = (TradeResponse(**mock_response), "fill_confirmed")
+    mock_tuple = (TradeResponse(**mock_response), "fill_confirmed", "with_comment", None, None)
     mock_mt5_submit.return_value = completed_future_factory(mock_tuple)
 
     response = client.post(
@@ -82,7 +83,7 @@ def test_close_position_unknown_ticket_returns_404(client, auth_headers, mock_mt
 
     settings.execution_enabled = True
     mock_mt5_submit.return_value = completed_future_factory(
-        (TradeResponse(success=False, error="Position 999 not found"), "position_not_found")
+        (TradeResponse(success=False, error="Position 999 not found"), "position_not_found", "none", None, None)
     )
 
     response = client.post(

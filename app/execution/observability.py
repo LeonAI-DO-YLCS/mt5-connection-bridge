@@ -8,6 +8,7 @@ idempotency_key, and final_outcome.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from .lifecycle import OperationContext
 
@@ -18,6 +19,7 @@ def emit_operation_log(
     ctx: OperationContext,
     code: str,
     final_outcome: str,
+    **extra: Any,
 ) -> None:
     """Emit a structured log entry for a completed operation (FR-018).
 
@@ -25,6 +27,7 @@ def emit_operation_log(
         ctx: The operation context with lifecycle data.
         code: The canonical error code name (e.g., "REQUEST_OK").
         final_outcome: Human-readable outcome string (e.g., "fill_confirmed").
+        **extra: Additional fields to include in the log entry.
     """
     log_data = {
         "tracking_id": ctx.tracking_id,
@@ -35,4 +38,5 @@ def emit_operation_log(
         "idempotency_key": ctx.idempotency_key,
         "final_outcome": final_outcome,
     }
+    log_data.update(extra)
     logger.info("Operation complete: %s", log_data)
