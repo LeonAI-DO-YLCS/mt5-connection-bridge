@@ -26,6 +26,10 @@ As an operator running the bridge on a new machine for the first time, when I ex
 
 As an operator investigating a failed restart, I want the launcher to output a plain-language diagnosis: "Port 8000 is already in use by process XYZ — run `./scripts/stop_bridge.sh` first" — not a raw OS error or a blank exit.
 
+As an operator performing smoke tests, I want the smoke test script to output an enriched status summary (version, run ID) while keeping existing pass/fail behavior intact.
+
+As a Windows operator, I want the equivalent structured preflight checks and output parsing on my PowerShell launcher wrapper.
+
 ### Acceptance Scenarios
 
 1. **Given** the `MetaTrader5` Python package is not installed in the active runtime environment, **When** the operator runs `./scripts/start_bridge.sh`, **Then** the preflight check detects the missing dependency and prints a human-readable message: "Required dependency 'MetaTrader5' is not installed. Install it with: `pip install MetaTrader5`" — before attempting to start the bridge process.

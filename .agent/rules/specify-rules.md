@@ -7,6 +7,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-03
 - N/A (all evaluation is live, no persistence) (011-phase2-readiness-and-prerequisites)
 - Python 3.12 (backend bridge); Vanilla JS ES2020+ (dashboard — no dashboard changes in this phase) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640 (013-phase4-close-comment-compatibility)
 - N/A (structured logs only, no persistent storage) (013-phase4-close-comment-compatibility)
+- Python 3.12 (backend bridge); Bash 5.x (launcher scripts); Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640, PyYAML ≥6.0, uvicorn (014-phase5-launcher-runtime-hardening)
+- File-based (session.json, launcher log bundles under `logs/bridge/launcher/<run-id>/`) (014-phase5-launcher-runtime-hardening)
 
 - Python 3.12 (backend), Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640 (010-phase1-message-contract-and-taxonomy)
 
@@ -26,9 +28,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.12 (backend), Vanilla JS ES2020+ (dashboard): Follow standard conventions
 
 ## Recent Changes
+- 014-phase5-launcher-runtime-hardening: Added Python 3.12 (backend bridge); Bash 5.x (launcher scripts); Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640, PyYAML ≥6.0, uvicorn
 - 013-phase4-close-comment-compatibility: Added Python 3.12 (backend bridge); Vanilla JS ES2020+ (dashboard — no dashboard changes in this phase) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640
 - 011-phase2-readiness-and-prerequisites: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- 011-phase2-readiness-and-prerequisites: Added Python 3.12 (backend bridge); Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640
 
 
 <!-- MANUAL ADDITIONS START -->

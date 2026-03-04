@@ -35,6 +35,26 @@ async def diagnostics_runtime() -> RuntimeDiagnostics:
     now = datetime.now(timezone.utc)
     runtime_path = resolve_runtime_state_path(settings)
     state = get_state()
+    
+    launcher_run_id = settings.launcher_run_id
+    last_termination_reason = None
+    log_bundle_hint = None
+    
+    if launcher_run_id:
+        import os
+        from pathlib import Path
+        project_root = Path(__file__).resolve().parents[2]
+        log_root = Path(os.environ.get("LAUNCHER_LOG_ROOT", str(project_root / "logs" / "bridge" / "launcher")))
+        session_path = log_root / launcher_run_id / "session.json"
+        log_bundle_hint = str(session_path.parent)
+        
+        if session_path.exists():
+            try:
+                session_payload = json.loads(session_path.read_text(encoding="utf-8"))
+                last_termination_reason = session_payload.get("termination_reason")
+            except Exception:
+                pass
+
     return RuntimeDiagnostics(
         app_version=app_version,
         started_at=app_started_at.isoformat(),
@@ -48,6 +68,9 @@ async def diagnostics_runtime() -> RuntimeDiagnostics:
         symbols_config_path=str(settings.symbols_config_path),
         runtime_state_path=str(runtime_path),
         runtime_state_exists=runtime_path.exists(),
+        launcher_run_id=launcher_run_id,
+        last_termination_reason=last_termination_reason,
+        log_bundle_hint=log_bundle_hint,
         config_fingerprint=_fingerprint(),
     )
 

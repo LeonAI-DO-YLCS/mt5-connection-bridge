@@ -16,6 +16,9 @@ class RuntimeDiagnostics(BaseModel):
     symbols_config_path: str
     runtime_state_path: str
     runtime_state_exists: bool
+    launcher_run_id: str | None = None
+    last_termination_reason: str | None = None
+    log_bundle_hint: str | None = None
     config_fingerprint: str
 
 

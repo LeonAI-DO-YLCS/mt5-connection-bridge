@@ -168,6 +168,106 @@ if (-not $depState.Ok) {
     }
 }
 
+function Test-PortAvailability {
+    param([int]$Port)
+    $connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($connection) {
+        return $false
+    }
+    return $true
+}
+
+function Run-PreflightChecks {
+    param([int]$Port, [string]$LogLevel, [string]$ApiKey, [string]$PythonExe)
+
+    Write-Host ""
+    Write-Host "================= PREFLIGHT CHECKS ================="
+
+    $critCount = 0
+    $warnCount = 0
+
+    # 1. Port Check
+    $portFree = Test-PortAvailability -Port $Port
+    if ($portFree) {
+        Write-Host "[OK]   Port $Port is available" -ForegroundColor Green
+    } else {
+        Write-Host "[CRIT] Port $Port is already in use by another process" -ForegroundColor Red
+        $critCount++
+    }
+
+    # 2. Log Level
+    $validLevels = @("critical", "error", "warning", "info", "debug", "trace")
+    if ($validLevels -contains $LogLevel.ToLowerInvariant()) {
+        Write-Host "[OK]   Log level '$LogLevel' is valid" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] Log level '$LogLevel' is unrecognized, uvicorn may fail" -ForegroundColor Yellow
+        $warnCount++
+    }
+
+    # 3. API Key
+    if ($ApiKey -eq "change-me") {
+        Write-Host "[WARN] MT5_BRIDGE_API_KEY is using the default 'change-me'" -ForegroundColor Yellow
+        $warnCount++
+    } else {
+        Write-Host "[OK]   API Key configured securely" -ForegroundColor Green
+    }
+
+    # 4. Python checks
+    $pyVersion = & $PythonExe -c "import platform; print(platform.python_version())" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $pyVersion) {
+        Write-Host "[OK]   Python $pyVersion discovered at $PythonExe" -ForegroundColor Green
+    } else {
+        Write-Host "[CRIT] Python executable invalid or failing" -ForegroundColor Red
+        $critCount++
+    }
+
+    Write-Host "Preflight complete: $critCount CRITICAL, $warnCount WARNINGS"
+    Write-Host "===================================================="
+    Write-Host ""
+
+    if ($critCount -gt 0) {
+        Write-Host "Preflight critical failures. Aborting launch." -ForegroundColor Red
+        exit 1
+    }
+}
+
+function Print-FailureDiagnostic {
+    param([string]$OutputContent)
+
+    Write-Host ""
+    Write-Host "==== BRIDGE STARTUP FAILURE DIAGNOSTICS ====" -ForegroundColor Red
+    
+    if ($OutputContent -match "error while attempting to bind on address") {
+        Write-Host "Diagnosis  : Port Conflict Detected" -ForegroundColor Yellow
+        Write-Host "Resolution : The port is already strictly bound by another process. Check 'stop_bridge' or your task manager."
+    }
+    elseif ($OutputContent -match "ModuleNotFoundError") {
+        Write-Host "Diagnosis  : Missing Python Dependency" -ForegroundColor Yellow
+        Write-Host "Resolution : Ensure all requirements are installed in the venv."
+    }
+    elseif ($OutputContent -match "ValidationError") {
+        Write-Host "Diagnosis  : Environment Validation Failed" -ForegroundColor Yellow
+        Write-Host "Resolution : Check your .env file limits (e.g., config types)."
+    }
+    elseif ($OutputContent -match "MetaTrader5.initialize\(\) failed") {
+        Write-Host "Diagnosis  : MT5 Terminal Launch Failure" -ForegroundColor Yellow
+        Write-Host "Resolution : Verify MT5 is installed and reachable by the bridge."
+    }
+    else {
+        Write-Host "Diagnosis  : Unknown Startup Traceback" -ForegroundColor Yellow
+        Write-Host "Resolution : Review the output above for clues."
+    }
+
+    Write-Host "===========================================" -ForegroundColor Red
+    Write-Host ""
+}
+
+$SkipPreflight = ($env:LAUNCHER_SKIP_PREFLIGHT -eq "true" -or $env:LAUNCHER_SKIP_PREFLIGHT -eq "1")
+
+if (-not $SkipPreflight) {
+    Run-PreflightChecks -Port $Port -LogLevel $env:LOG_LEVEL -ApiKey $env:MT5_BRIDGE_API_KEY -PythonExe $python
+}
+
 Set-Location $RepoRoot
 Write-Output "[windows-launcher] python=$python"
 Write-Output "[windows-launcher] repo=$RepoRoot port=$Port log_level=$($env:LOG_LEVEL)"
@@ -176,5 +276,14 @@ if ($AccessLogEnabled.ToLowerInvariant() -ne "true") {
     $args += "--no-access-log"
 }
 
-& $python @args
+# Run the bridge and capture output to display diagnostics
+$combinedOutput = ""
+& $python @args 2>&1 | ForEach-Object {
+    $combinedOutput += "$_`n"
+    Write-Output $_
+}
+
+if ($LASTEXITCODE -ne 0) {
+    Print-FailureDiagnostic -OutputContent $combinedOutput
+}
 exit $LASTEXITCODE

@@ -12,6 +12,24 @@ import { renderHistory } from "./history.js";
 import { renderBrokerSymbols } from "./symbols-browser.js";
 import { showEnvelope, showError } from "./message-renderer.js";
 
+function renderRuntimeSummary(container, runtime) {
+  if (!runtime) return;
+  const panel = document.createElement("div");
+  panel.className = "card runtime-summary-panel mt-4";
+  panel.innerHTML = `
+    <h2>Runtime Summary</h2>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+      <div><strong>Launcher Run ID:</strong> <span class="mono text-muted">${runtime.launcher_run_id || "Run ID not available"}</span></div>
+      <div><strong>Last Termination:</strong> <span>${runtime.last_termination_reason || "n/a"}</span></div>
+      <div style="grid-column: 1 / -1; margin-top: 12px;" class="small">
+        <strong>Log Bundle Hint:</strong> <span class="mono">${runtime.log_bundle_hint || "n/a"}</span>
+      </div>
+    </div>
+  `;
+  container.appendChild(panel);
+}
+
+
 const API_KEY_STORAGE = "mt5_bridge_api_key";
 
 const authScreen = document.getElementById("authScreen");
@@ -148,7 +166,7 @@ async function loadTab(tabName) {
 
     const doLoad = async () => {
       try {
-        const [health, worker, metrics, account, terminal, config, capabilities] = await Promise.all([
+        const [health, worker, metrics, account, terminal, config, capabilities, runtime] = await Promise.all([
           api("/health"),
           api("/worker/state"),
           api("/metrics"),
@@ -156,10 +174,12 @@ async function loadTab(tabName) {
           api("/terminal").catch(() => null),
           api("/config"),
           api("/broker-capabilities").catch(() => null),
+          api("/diagnostics/runtime").catch(() => null),
         ]);
-        cacheTabData("status", { health, worker, metrics, account, terminal, config, capabilities });
+        cacheTabData("status", { health, worker, metrics, account, terminal, config, capabilities, runtime });
         setConnectionBanner(false);
         renderStatus(tabContent, health, worker, metrics, account, terminal, config, capabilities);
+        renderRuntimeSummary(tabContent, runtime);
         envBadge.textContent = config.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
         wireExecutionToggle(doLoad, Boolean(config.execution_enabled));
         renderFreshness("status", false);
@@ -179,6 +199,7 @@ async function loadTab(tabName) {
           cached.data.config,
           cached.data.capabilities,
         );
+        renderRuntimeSummary(tabContent, cached.data.runtime);
         envBadge.textContent = cached.data.config?.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
         wireExecutionToggle(doLoad, Boolean(cached.data.config?.execution_enabled));
         renderFreshness("status", true);
