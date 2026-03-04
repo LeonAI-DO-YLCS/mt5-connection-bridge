@@ -17,6 +17,7 @@ os.environ.setdefault("MT5_BRIDGE_API_KEY", "test-api-key")
 os.environ.setdefault("EXECUTION_ENABLED", "false")
 os.environ.setdefault("METRICS_RETENTION_DAYS", "90")
 os.environ.setdefault("MULTI_TRADE_OVERLOAD_QUEUE_THRESHOLD", "100")
+os.environ.setdefault("STRICT_HTTP_SEMANTICS", "true")
 
 
 @pytest.fixture
