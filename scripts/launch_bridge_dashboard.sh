@@ -6,6 +6,7 @@ ENV_FILE="${LAUNCHER_ENV_FILE:-$ROOT_DIR/.env}"
 LOG_ROOT="${LAUNCHER_LOG_ROOT:-$ROOT_DIR/logs/bridge/launcher}"
 HOST="${LAUNCHER_HOST:-0.0.0.0}"
 RUN_ID="${LAUNCHER_RUN_ID:-$(date -u +%Y%m%d-%H%M%S)-$$}"
+export LAUNCHER_RUN_ID="$RUN_ID"
 RUN_DIR="$LOG_ROOT/$RUN_ID"
 LAUNCHER_LOG="$RUN_DIR/launcher.log"
 STDOUT_LOG="$RUN_DIR/bridge.stdout.log"
@@ -228,6 +229,152 @@ if [[ "${LAUNCHER_SKIP_PORT_CLEANUP:-false}" != "true" ]]; then
   log_event "INFO" "launcher" "Preflight: clearing listeners on :${PORT} before startup."
   "$ROOT_DIR/scripts/stop_bridge.sh" >>"$LAUNCHER_LOG" 2>&1 || true
 fi
+
+check_port() {
+  local p="$1"
+  local pid=""
+  if [[ "$USE_WINDOWS_BRIDGE" == "true" ]] && command -v powershell.exe >/dev/null 2>&1; then
+    pid="$(powershell.exe -NoProfile -Command "(Get-NetTCPConnection -State Listen -LocalPort ${p} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -First 1)" 2>/dev/null | tr -d '\r\n' || true)"
+  elif command -v lsof >/dev/null 2>&1; then
+    pid="$(lsof -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
+  fi
+  
+  if [[ -n "$pid" && "$pid" != "n/a" ]]; then
+    echo "CRITICAL|Port ${p}|BLOCKED (in use by PID ${pid}) — Fix: ./scripts/stop_bridge.sh"
+    return 1
+  else
+    echo "PASS|Port ${p}|available"
+    return 0
+  fi
+}
+
+check_dependency() {
+  local module="$1"
+  local pip_name="${2:-$1}"
+  local crit="${3:-false}"
+  
+  if ! "$PYTHON_BIN" -c "import ${module}" >/dev/null 2>&1; then
+    if [[ "$crit" == "true" ]]; then
+      echo "CRITICAL|${module}|NOT INSTALLED — Fix: ${PYTHON_BIN} -m pip install ${pip_name}"
+    else
+      echo "WARN|${module}|NOT INSTALLED — Fix: ${PYTHON_BIN} -m pip install ${pip_name}"
+    fi
+  else
+    echo "PASS|${module}|installed"
+  fi
+}
+
+check_dependencies() {
+  check_dependency "MetaTrader5" "MetaTrader5" "false"
+  check_dependency "fastapi" "fastapi" "true"
+  check_dependency "uvicorn" "uvicorn" "true"
+  check_dependency "pydantic" "pydantic" "true"
+  check_dependency "yaml" "pyyaml" "true"
+}
+
+check_log_level() {
+  local lvl="${LOG_LEVEL,,}"
+  if [[ "$lvl" != "debug" && "$lvl" != "info" && "$lvl" != "warning" && "$lvl" != "error" && "$lvl" != "critical" ]]; then
+    echo "WARN|LOG_LEVEL|'${LOG_LEVEL}' → defaulting to 'info'"
+    LOG_LEVEL="info"
+  else
+    echo "PASS|LOG_LEVEL|${lvl} (valid)"
+  fi
+}
+
+check_env_keys() {
+  if [[ -n "$API_KEY" ]]; then
+    echo "PASS|MT5_BRIDGE_API_KEY|present"
+  else
+    echo "CRITICAL|MT5_BRIDGE_API_KEY|missing"
+  fi
+  
+  local login="${MT5_LOGIN:-$(get_env MT5_LOGIN)}"
+  if [[ -n "$login" ]]; then
+    echo "PASS|MT5_LOGIN|present"
+  else
+    echo "WARN|MT5_LOGIN|missing"
+  fi
+
+  local server="${MT5_SERVER:-$(get_env MT5_SERVER)}"
+  if [[ -n "$server" ]]; then
+    echo "PASS|MT5_SERVER|present"
+  else
+    echo "WARN|MT5_SERVER|missing"
+  fi
+}
+
+run_preflight_checks() {
+  if [[ "${LAUNCHER_SKIP_PREFLIGHT:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  local passes=0
+  local warns=0
+  local blocks=0
+  local results=()
+
+  # Gather results
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      results+=("$line")
+      local status="$(echo "$line" | cut -d'|' -f1)"
+      if [[ "$status" == "PASS" ]]; then ((passes++)); fi
+      if [[ "$status" == "WARN" ]]; then ((warns++)); fi
+      if [[ "$status" == "CRITICAL" ]]; then ((blocks++)); fi
+    fi
+  done < <(
+    check_port "$PORT" || true
+    check_dependencies
+    check_log_level
+    check_env_keys
+  )
+
+  local bar="═══════════════════════════════════════════════════"
+  local thin="───────────────────────────────────────────────────"
+  
+  echo "$bar"
+  echo " Preflight Summary (run_id=${RUN_ID})"
+  echo "$bar"
+  
+  for res in "${results[@]}"; do
+    local stat="$(echo "$res" | cut -d'|' -f1)"
+    local item="$(echo "$res" | cut -d'|' -f2)"
+    local msg="$(echo "$res" | cut -d'|' -f3)"
+    
+    local pad=""
+    local len=${#item}
+    local pad_len=$(( 28 - len ))
+    if (( pad_len > 0 )); then
+      pad=$(printf '.%.0s' $(seq 1 $pad_len))
+    fi
+
+    if [[ "$stat" == "PASS" ]]; then
+      echo " ${C_OK}✓${C_RESET} ${C_LABEL}${item}${C_RESET} ${C_MUTED}${pad}${C_RESET} ${msg}"
+    elif [[ "$stat" == "WARN" ]]; then
+      echo " ${C_WARN}⚠${C_RESET} ${C_LABEL}${item}${C_RESET} ${C_MUTED}${pad}${C_RESET} ${C_WARN}${msg}${C_RESET}"
+    elif [[ "$stat" == "CRITICAL" ]]; then
+      echo " ${C_ERR}✗${C_RESET} ${C_LABEL}${item}${C_RESET} ${C_MUTED}${pad}${C_RESET} ${C_ERR}${msg}${C_RESET}"
+    fi
+  done
+
+  echo "$thin"
+  if (( blocks > 0 )); then
+    echo " Result: ${C_ERR}BLOCKED${C_RESET} ($passes pass, $warns warnings, $blocks blockers)"
+    echo "$bar"
+    return 4
+  elif (( warns > 0 )); then
+    echo " Result: ${C_WARN}WARN${C_RESET} ($passes pass, $warns warnings, 0 blockers)"
+    echo "$bar"
+    return 0
+  else
+    echo " Result: ${C_OK}PASS${C_RESET} ($passes pass, 0 warnings, 0 blockers)"
+    echo "$bar"
+    return 0
+  fi
+}
+
+run_preflight_checks || exit $?
 
 log_event "INFO" "launcher" "Starting bridge launcher session run_id=${RUN_ID}"
 log_event "INFO" "launcher" "Bridge endpoint: http://127.0.0.1:${PORT}"
@@ -568,9 +715,61 @@ else
   fi
 fi
 
+print_failure_diagnostic() {
+  local stderr_file="$1"
+  if [[ ! -f "$stderr_file" ]]; then
+    return
+  fi
+  
+  local cat="unexpected_failure"
+  local desc="The bridge process exited unexpectedly."
+  local fix="Check the log file for detailed tracebacks."
+  local flag="none"
+  
+  local err_content
+  err_content="$(tail -n 50 "$stderr_file")"
+  
+  if echo "$err_content" | grep -qi "Address already in use"; then
+    cat="port_conflict"
+    desc="Port ${PORT} binding failed: Address already in use"
+    fix="./scripts/stop_bridge.sh"
+  elif echo "$err_content" | grep -qi "ModuleNotFoundError"; then
+    cat="dependency_missing"
+    local mod
+    mod="$(echo "$err_content" | grep -oP '(?<=No module named '"'"')[^'"'"']+' | tail -n 1 || true)"
+    if [[ -z "$mod" ]]; then mod="unknown"; fi
+    desc="A required Python module ('${mod}') is missing from the environment"
+    fix="${PYTHON_BIN} -m pip install ${mod}"
+  elif echo "$err_content" | grep -qi "ValidationError"; then
+    cat="config_mismatch"
+    desc="Configuration environment variables failed validation"
+    fix="Review your .env file against .env.example"
+  elif echo "$err_content" | grep -qE "401 Unauthorized|auth|credentials"; then
+    cat="auth_misconfiguration"
+    desc="Bridge authentication or MT5 credentials failed"
+    fix="Verify MT5_BRIDGE_API_KEY and MT5_LOGIN values"
+  fi
+  
+  local bar="───────────────────────────────────────────────────"
+  echo ""
+  echo "$bar"
+  echo " Startup Failure Diagnosis"
+  echo "$bar"
+  echo " Category    : ${cat}"
+  echo " Description : ${desc}"
+  echo " Fix         : ${fix}"
+  echo " Log         : ${stderr_file}"
+  echo " Flag        : ${flag}"
+  echo "$bar"
+}
+
 stop_tui
 ENDED_AT_UTC="$(utc_now)"
 write_session_metadata "$ENDED_AT_UTC"
+
+if [[ "$FINAL_EXIT_CODE" -ne 0 && "$TERMINATION_REASON" != "interrupted" ]]; then
+  print_failure_diagnostic "$STDERR_LOG"
+fi
 
 log_event "INFO" "launcher" "Session ended with exit_code=${FINAL_EXIT_CODE} reason=${TERMINATION_REASON}"
 exit "$FINAL_EXIT_CODE"

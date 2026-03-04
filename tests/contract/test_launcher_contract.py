@@ -90,3 +90,45 @@ def test_compatibility_contract_for_existing_operational_scripts():
         assert script.exists(), f"Missing script: {script}"
         lint_result = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
         assert lint_result.returncode == 0, lint_result.stderr
+
+
+def test_diagnostics_runtime_contains_launcher_fields(monkeypatch):
+    from app.main import app, settings
+    from fastapi.testclient import TestClient
+    
+    run_id = "test-contract-999"
+    monkeypatch.setattr(settings, "launcher_run_id", run_id)
+    
+    current_key = settings.mt5_bridge_api_key
+    
+    with TestClient(app) as client:
+        response = client.get("/diagnostics/runtime", headers={"X-API-Key": current_key})
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "launcher_run_id" in data
+        assert data["launcher_run_id"] == run_id
+        assert "last_termination_reason" in data
+        assert "log_bundle_hint" in data
+
+
+def test_smoke_bridge_outputs_explicit_pass_fail(tmp_path: Path):
+    smoke_script = ROOT_DIR / "scripts" / "smoke_bridge.sh"
+    
+    # We can invoke it directly without a server running to see the [FAIL] response.
+    env = os.environ.copy()
+    env["MT5_BRIDGE_API_KEY"] = "contract-key"
+    env["MT5_BRIDGE_PORT"] = "19002"  # Ensure no active server
+    
+    result = subprocess.run(
+        ["bash", str(smoke_script)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=env,
+    )
+    
+    assert "[FAIL] /health -> Connection Error:" in result.stdout
+    assert "Connection refused" in result.stdout or "Failed to connect" in result.stdout
+    # Test for no stdout/stderr bleeding in mysterious ways
+    assert result.stderr == ""

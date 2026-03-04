@@ -81,6 +81,7 @@ cd mt5-connection-bridge
 ```
 
 WSL behavior:
+
 - launcher auto-selects Windows-host runtime mode when running in WSL and `LAUNCHER_PREFER_WINDOWS=true`
 - PowerShell runner: `scripts/windows/launch_bridge_windows.ps1`
 - Windows Python resolution order: `.venv-win\\Scripts\\python.exe`, `.venv\\Scripts\\python.exe`, then `python` on Windows PATH
@@ -89,11 +90,13 @@ WSL behavior:
 - Recommended Windows Python: 3.10-3.12 for `MetaTrader5` compatibility
 
 The launcher prints:
+
 - bridge endpoint URL
 - dashboard URL
 - run-scoped log bundle path
 
 Interactive TUI behavior:
+
 - on interactive terminals (`LAUNCHER_TUI_MODE=auto`), launcher renders a live status screen
 - panel includes runtime mode, process chain, runtime/listener PIDs, API health, dashboard status, and artifact paths
 - fixed-screen rendering with color-coded sections and change-only redraws (no growing log stream in the panel)
@@ -121,11 +124,37 @@ logs/dashboard/
 ```
 
 Runtime reliability policy:
+
 - one automatic restart attempt on unexpected runtime crash
 - safe non-success exit if restart attempt also fails
 - lifecycle and failure events persisted in the same run bundle
 
+Launcher preflight checks (run before starting the bridge):
+
+- **Port availability** (critical blocker — aborts launch if port is occupied)
+- **Python dependency presence** (warning if `uvicorn`, `fastapi`, `MetaTrader5` missing)
+- **Log level validation** (warning if set to unrecognized level)
+- **Environment key sanity** (warning if using default `change-me` API key)
+- Skip preflight with `LAUNCHER_SKIP_PREFLIGHT=true`
+
+Structured failure diagnostics:
+
+- On non-zero bridge exits, launcher parses stderr for common patterns (port conflict, missing dependency, config mismatch, auth misconfiguration)
+- Provides user-friendly diagnosis and resolution steps inline
+- Windows PowerShell launcher mirrors this behavior
+
+Dashboard runtime summary:
+
+- The Status tab shows a **Runtime Summary** panel with the current `LAUNCHER_RUN_ID`, last termination reason, and log bundle hint
+- This data comes from the `/diagnostics/runtime` endpoint which reads `session.json` from the current run bundle
+
+Smoke bridge enrichment:
+
+- `./scripts/smoke_bridge.sh` now outputs explicit `[PASS]`/`[FAIL]` prefixes per endpoint
+- Appends a Runtime Summary block (app version, MT5 connection status, uptime, launcher run ID)
+
 Security/access notes:
+
 - launcher sessions are network-access enabled by default
 - authenticated access remains required for operations
 - failed authentication attempts are logged for inspection (no lockout/throttling policy in launcher scope)

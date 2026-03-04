@@ -177,3 +177,24 @@ def test_launcher_session_metadata_contains_expected_fields(tmp_path: Path):
     started = datetime.fromisoformat(payload["started_at_utc"].replace("Z", "+00:00"))
     ended = datetime.fromisoformat(payload["ended_at_utc"].replace("Z", "+00:00"))
     assert ended >= started
+
+
+def test_launcher_emits_preflight_summary(tmp_path: Path):
+    result, _ = _run_launcher(tmp_path, "python3 -c \"print('bridge-up')\"")
+    output = result.stdout + result.stderr
+    # Before the bridge starts, the launcher should emit the preflight summary
+    assert "Preflight Summary" in output
+    assert "Result:" in output
+    assert "Port" in output
+    assert "LOG_LEVEL" in output
+
+
+def test_launcher_diagnostics_on_startup_failure(tmp_path: Path):
+    cmd = "python3 -c \"import sys; print('Address already in use', file=sys.stderr); sys.exit(1)\""
+    result, _ = _run_launcher(tmp_path, cmd)
+    output = result.stdout + result.stderr
+    
+    # We should see the diagnostic pane printed
+    assert "Startup Failure Diagnosis" in output
+    assert "port_conflict" in output
+    assert "Fix" in output

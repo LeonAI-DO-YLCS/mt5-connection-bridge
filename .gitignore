@@ -21,4 +21,5 @@ Thumbs.db
 .idea/
 specs/
 docs/plans/
-tests/
+tests/node_modules/
+build/
