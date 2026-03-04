@@ -1,0 +1,12 @@
+# Add patterns to ignore here, one per line
+# Example:
+# *.log
+# tmp/
+.pytest_cache
+.ruff_cache
+.venv
+mt5-connection-bridge.xml
+.coverage
+.coveragerc
+.dockerignore
+.env
