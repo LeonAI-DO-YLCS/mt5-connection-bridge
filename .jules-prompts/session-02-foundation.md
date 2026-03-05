@@ -26,8 +26,16 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 
 1. **Read first**: Read every file you are about to modify BEFORE making changes.
 2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
-3. **Scope control**: Do NOT modify files not mentioned in your tasks. Only touch these 3 files.
-4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/015-phase6-dashboard-operator-experience/tasks.md`.
+3. **ALLOWED FILES — you may ONLY modify these 3 files**:
+   - `dashboard/js/confirmation-modal.js`
+   - `dashboard/js/support-package.js`
+   - `dashboard/js/operator-timeline.js`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `dashboard/index.html`, `dashboard/css/dashboard.css`, or any other JS file
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
 5. **Commit convention**: Commit with message: `feat(015): T006–T008 Phase 6 foundational modules`
 6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
 7. **Preserve existing code**: Only ADD or REPLACE within the same file — do not remove unrelated functionality.
