@@ -456,3 +456,165 @@ td {
   padding: 0.4rem 0;
   font-size: 0.86rem;
 }
+
+/* Phase 6: Dashboard Operator Experience ──────────────────────────────────── */
+
+.confirmation-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.confirmation-modal {
+  width: min(500px, 95vw);
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.sticky-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9000;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border-radius: 8px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.sticky-banner.hidden {
+  display: none;
+}
+
+.message-center-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.message-center-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(16, 35, 56, 0.8);
+}
+
+.severity-critical {
+  border-left: 4px solid var(--danger);
+}
+
+.severity-high {
+  border-left: 4px solid var(--warn);
+}
+
+.severity-medium {
+  border-left: 4px solid var(--warn);
+}
+
+.severity-low {
+  border-left: 4px solid var(--ok);
+}
+
+.timeline-drawer {
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.timeline-drawer.hidden {
+  display: none;
+}
+
+.timeline-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.timeline-entry:last-child {
+  border-bottom: none;
+}
+
+.copy-btn {
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 0.2s;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Include any remaining Phase 6 missing blocks */
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.modal-body {
+  margin-bottom: 1.25rem;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.message-title {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.message-body {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.message-action {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.timeline-header {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timeline-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
