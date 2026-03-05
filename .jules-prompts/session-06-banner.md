@@ -24,11 +24,21 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 - T035 [US4]: In `dashboard/css/dashboard.css`, add a CSS comment above sticky-banner styles: `/* FR-023: Banner uses text labels + color, not color alone. */`.
 
 ### Rules
+### Rules
 
-1. **Read first**: Read `app.js` COMPLETELY before making ANY changes.
-2. **Scope control**: ONLY modify `app.js` and `dashboard.css`. Do NOT touch other files.
-3. **Mark progress**: Mark tasks as `[x]` in tasks.md.
-4. **Commit**: `feat(015): T032–T035 sticky connection/readiness banner`
-5. **No speckit commands**: Apply manually.
-6. **Preserve existing**: The status tab's existing rendering (including `renderRuntimeSummary`) MUST continue working.
-7. **Promise.all modification**: Add the new readiness fetch to the EXISTING Promise.all — do not create a separate fetch.
+1. **Read first**: Read every file you are about to modify BEFORE making changes.
+2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
+3. **ALLOWED FILES — you may ONLY modify these files**:
+   - `dashboard/js/app.js`
+   - `dashboard/css/dashboard.css`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `dashboard/index.html` or any other JS file
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
+5. **Commit convention**: Commit with message: `feat(015): T032–T035 sticky connection/readiness banner`
+6. **No speckit commands**: Apply manually.
+7. **Preserve existing code**: The status tab's existing rendering (including `renderRuntimeSummary`) MUST continue working.
+8. **Promise.all modification**: Add the new readiness fetch to the EXISTING Promise.all — do not create a separate fetch.
+9. **No stubs**: Every function must be fully implemented and working.

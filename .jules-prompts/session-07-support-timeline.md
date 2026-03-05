@@ -39,10 +39,25 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 
 ### Rules
 
-1. **Read first**: Read ALL files listed above BEFORE making changes.
-2. **Scope control**: ONLY modify the files listed. Do NOT touch other files.
-3. **Mark progress**: Mark tasks as `[x]` in tasks.md.
-4. **Commit**: `feat(015): T036–T043 support package and operator timeline`
-5. **No speckit commands**: Apply manually.
-6. **Preserve existing**: All current functionality MUST continue working.
-7. **Import placement**: All new imports go at the TOP of the file, alongside existing imports.
+1. **Read first**: Read every file you are about to modify BEFORE making changes.
+2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
+3. **ALLOWED FILES — you may ONLY modify these files**:
+   - `dashboard/js/message-renderer.js`
+   - `dashboard/js/readiness.js`
+   - `dashboard/js/support-package.js`
+   - `dashboard/js/app.js`
+   - `dashboard/js/execute-v2.js`
+   - `dashboard/js/positions.js`
+   - `dashboard/js/orders.js`
+   - `dashboard/index.html`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `dashboard/css/dashboard.css`
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
+5. **Commit convention**: Commit with message: `feat(015): T036–T043 support package and operator timeline`
+6. **No speckit commands**: Apply manually.
+7. **Preserve existing code**: All current functionality MUST continue working.
+8. **Import placement**: All new imports go at the TOP of the file, alongside existing imports.
+9. **No stubs**: Every function must be fully implemented and working.

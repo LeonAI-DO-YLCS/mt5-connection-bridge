@@ -53,7 +53,7 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Implement the full `showConfirmationModal(config)` function in `dashboard/js/confirmation-modal.js`. The function must:
+- [x] T006 Implement the full `showConfirmationModal(config)` function in `dashboard/js/confirmation-modal.js`. The function must:
   1. Accept a `config` object with fields: `title` (string, required), `message` (string, required), `details` (array of `{label, value}`, optional), `riskSummary` (string, optional), `confirmLabel` (string, required), `cancelLabel` (string, optional, default "Cancel"), `variant` ("danger"|"warning"|"default", optional), `requireCheckbox` (boolean, optional), `checkboxLabel` (string, optional).
   2. Return a `Promise<boolean>` that resolves `true` when confirmed, `false` when cancelled.
   3. Create a full-screen overlay `<div class="confirmation-modal-overlay">` and append it to `document.getElementById("modalRoot")`.
@@ -72,7 +72,7 @@
   16. On mount, move focus to the Cancel button (safe default).
   17. Implement basic focus trapping: Tab should cycle between the interactive elements within the modal only.
 
-- [ ] T007 Implement the `copySupportPackage(data)` function in `dashboard/js/support-package.js`. The function must:
+- [x] T007 Implement the `copySupportPackage(data)` function in `dashboard/js/support-package.js`. The function must:
   1. Accept a `data` object with fields: `tracking_id`, `operation`, `symbol`, `direction`, `volume`, `readiness_status`, `error_code`, `error_message`, `timestamp`.
   2. Build a plain-text string in this exact format:
      ```
@@ -91,7 +91,7 @@
   3. Try `navigator.clipboard.writeText(text)`. If successful, return `{ success: true }`.
   4. If clipboard API fails (catch the error), create a fallback: render a modal overlay with a `<textarea readonly>` containing the text, pre-selected, with a "Close" button. Return `{ success: false, fallback: true }`.
 
-- [ ] T008 Implement the operator timeline module in `dashboard/js/operator-timeline.js`. The module must:
+- [x] T008 Implement the operator timeline module in `dashboard/js/operator-timeline.js`. The module must:
   1. Maintain an internal array `_entries` (max 50, FIFO eviction).
   2. On module load, try to restore `_entries` from `sessionStorage.getItem("mt5_timeline")` (JSON parse, default to `[]` on error).
   3. `pushTimelineEntry(entry)`: Accept `{ action, outcome, code, tracking_id, symbol, timestamp }`. Push to the front of `_entries`. If length > 50, pop from the end. Save to `sessionStorage.setItem("mt5_timeline", JSON.stringify(_entries))`.

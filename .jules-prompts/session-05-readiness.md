@@ -33,9 +33,20 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 
 ### Rules
 
-1. **Read first**: Read `positions.js`, `orders.js`, and `readiness.js` COMPLETELY before changes.
-2. **Scope control**: ONLY modify `positions.js` and `orders.js`. Do NOT touch `readiness.js` or other files.
-3. **Mark progress**: After completing each task, mark it as `[x]` in tasks.md.
-4. **Commit**: `feat(015): T025–T031 inline readiness panels for positions and orders`
-5. **No speckit commands**: Apply manually.
-6. **Preserve existing**: All current position/order functionality MUST continue working.
+1. **Read first**: Read every file you are about to modify BEFORE making changes.
+2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
+3. **ALLOWED FILES — you may ONLY modify these files**:
+   - `dashboard/js/positions.js`
+   - `dashboard/js/orders.js`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `dashboard/index.html`, `dashboard/css/dashboard.css`
+   - ❌ DO NOT modify `readiness.js` — read it but do NOT modify it
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
+5. **Commit convention**: Commit with message: `feat(015): T025–T031 inline readiness panels for positions and orders`
+6. **No speckit commands**: Apply manually.
+7. **Preserve existing code**: All current position/order functionality MUST continue working.
+8. **No stubs**: Every function must be fully implemented and working.
+9. **Follow contracts**: The API signatures in `contracts/dashboard-components.md` are the authoritative specification.

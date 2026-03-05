@@ -32,12 +32,20 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 - T015 [US1]: Export a new `showMessage(entry)` function that renders a MessageCenterEntry directly without needing to parse an envelope.
 
 ### Rules
+### Rules
 
-1. **Read first**: Read `dashboard/js/message-renderer.js` COMPLETELY before making ANY changes.
-2. **Follow exactly**: Each task specifies exact modifications. Follow precisely.
-3. **Scope control**: ONLY modify `dashboard/js/message-renderer.js`. Do NOT touch any other file.
-4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/015-phase6-dashboard-operator-experience/tasks.md`.
+1. **Read first**: Read every file you are about to modify BEFORE making changes.
+2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
+3. **ALLOWED FILES — you may ONLY modify this file**:
+   - `dashboard/js/message-renderer.js`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `dashboard/index.html`, `dashboard/css/dashboard.css`, or any other JS file
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
 5. **Commit convention**: Commit with message: `feat(015): T009–T015 centralized message center`
-6. **No speckit commands**: Speckit CLI is not available. Apply all changes manually.
-7. **Preserve existing functionality**: The existing `showEnvelope`, `showSuccess`, `showError` functions MUST continue to work. You are ENHANCING them, not replacing them.
-8. **XSS safety**: Continue using the existing `_esc()` function for all user-supplied content.
+6. **No speckit commands**: Apply manually.
+7. **Preserve existing code**: All current `showEnvelope` / `renderToast` functionality MUST continue working.
+8. **No stubs**: Every function must be fully implemented and working, not a TODO or placeholder.
+9. **Follow contracts**: The API signatures in `contracts/dashboard-components.md` are the authoritative specification.

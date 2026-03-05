@@ -41,12 +41,25 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 - T056: Remove any leftover `showDangerCheckboxModal` definitions from `positions.js` and `orders.js`. Remove any `console.log` debug statements.
 
 ### Rules
+### Rules
 
-1. **Read first**: Read ALL files listed above BEFORE making changes.
-2. **Scope control**: ONLY modify the files listed. Do NOT touch other files.
-3. **Mark progress**: Mark tasks as `[x]` in tasks.md.
-4. **Commit**: `feat(015): T044–T056 validation hints, accessibility, and polish`
-5. **No speckit commands**: Apply manually.
-6. **Preserve existing**: All current functionality MUST continue working.
-7. **Accessibility standard**: Use WAI-ARIA dialog pattern for modals. Severity must use text labels AND color, not color alone.
-8. **Final check**: After all tasks, do a final scan of all dashboard JS files for any remaining `confirm(` or `alert(` calls. Report findings as a comment in the commit.
+1. **Read first**: Read every file you are about to modify BEFORE making changes.
+2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
+3. **ALLOWED FILES — you may ONLY modify these files**:
+   - `dashboard/js/execute-v2.js`
+   - `dashboard/js/message-renderer.js`
+   - `dashboard/js/confirmation-modal.js`
+   - `dashboard/js/positions.js`
+   - `dashboard/js/orders.js`
+   - `dashboard/css/dashboard.css`
+   - `dashboard/index.html`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
+5. **Commit convention**: Commit with message: `feat(015): T044–T056 validation hints, accessibility, and polish`
+6. **No speckit commands**: Apply manually.
+7. **Preserve existing code**: All current functionality MUST continue working.
+8. **Accessibility standard**: Use WAI-ARIA dialog pattern for modals. Severity must use text labels AND color, not color alone.
+9. **Final check**: After all tasks, do a final scan of all dashboard JS files for any remaining `confirm(` or `alert(` calls. Report findings as a comment in the commit.

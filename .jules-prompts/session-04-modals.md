@@ -38,12 +38,24 @@ Execute ONLY these tasks from `specs/015-phase6-dashboard-operator-experience/ta
 - T024 [US2]: In `positions.js` and `orders.js`, REMOVE the local `showDangerCheckboxModal` function definitions. Update the "Cancel All" flow in `orders.js` (~line 139) to use `showConfirmationModal` with `requireCheckbox: true`. Read T024 in tasks.md for the exact config.
 
 ### Rules
+### Rules
 
-1. **Read first**: Read ALL four files COMPLETELY before making ANY changes.
-2. **Follow exactly**: Each task specifies the exact `confirm()` call to replace and its replacement config.
-3. **Scope control**: ONLY modify `execute-v2.js`, `app.js`, `positions.js`, `orders.js`. Do NOT touch other files.
-4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/015-phase6-dashboard-operator-experience/tasks.md`.
+1. **Read first**: Read every file you are about to modify BEFORE making changes.
+2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
+3. **ALLOWED FILES — you may ONLY modify these files**:
+   - `dashboard/js/execute-v2.js`
+   - `dashboard/js/app.js`
+   - `dashboard/js/positions.js`
+   - `dashboard/js/orders.js`
+4. **DO NOT MODIFY any other file**. Specifically:
+   - ❌ DO NOT modify any `.jules-prompts/` files
+   - ❌ DO NOT modify `tasks.md` or any spec files
+   - ❌ DO NOT modify `dashboard/index.html`, `dashboard/css/dashboard.css`
+   - ❌ DO NOT modify `confirmation-modal.js`, `support-package.js`, `operator-timeline.js`
+   - ❌ DO NOT modify `.agent/` or any config files
+   - ❌ DO NOT create any new files
 5. **Commit convention**: Commit with message: `feat(015): T016–T024 standardized confirmation modals`
-6. **No speckit commands**: Speckit CLI is not available. Apply all changes manually.
-7. **Preserve existing functionality**: All existing features MUST continue working. You are REPLACING `confirm()` calls with `showConfirmationModal()` — same behavior, better UX.
-8. **Async conversion**: Where a `confirm()` call is replaced, the enclosing function must become `async` if it isn't already. The `const approved/confirmed = confirm(...)` becomes `const approved/confirmed = await showConfirmationModal(...)`.
+6. **No speckit commands**: Apply manually.
+7. **Preserve existing code**: All current functionality MUST continue working.
+8. **No stubs**: Every function must be fully implemented and working.
+9. **Follow contracts**: The API signatures in `contracts/dashboard-components.md` are the authoritative specification.
