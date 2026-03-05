@@ -1,39 +1,7 @@
 import { api } from "./app.js";
 import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
-
-function showDangerCheckboxModal({ title, message, checkboxLabel, confirmLabel }) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "confirm-modal-overlay";
-    overlay.innerHTML = `
-      <div class="confirm-modal">
-        <h4>${title}</h4>
-        <p>${message}</p>
-        <label class="confirm-checkbox">
-          <input type="checkbox" id="confirmCheckbox"> ${checkboxLabel}
-        </label>
-        <div class="confirm-actions">
-          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-          <button class="btn btn-danger" id="confirmBtn" disabled>${confirmLabel}</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-    const checkbox = overlay.querySelector("#confirmCheckbox");
-    const confirmBtn = overlay.querySelector("#confirmBtn");
-    const close = (result) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    checkbox.addEventListener("change", () => {
-      confirmBtn.disabled = !checkbox.checked;
-    });
-    overlay.querySelector("#cancelBtn").addEventListener("click", () => close(false));
-    confirmBtn.addEventListener("click", () => close(true));
-  });
-}
+import { renderReadinessPanel, isReadinessBlocked, isReadinessDegraded, isWarningAcknowledged } from "./readiness.js";
+import { showConfirmationModal } from "./confirmation-modal.js";
 
 function isGuardedDuplicateError(err) {
   const message = String(err?.message || "");
@@ -160,6 +128,23 @@ export function renderPositions(contentEl, payload, accountPayload) {
   html += `</div>`;
   contentEl.innerHTML = html;
 
+  // T025: Render readiness panel before positions grid
+  const readinessPanel = document.createElement("div");
+  readinessPanel.id = "positions-readiness-panel";
+  const gridEl = contentEl.querySelector(".grid");
+  contentEl.insertBefore(readinessPanel, gridEl);
+  renderReadinessPanel(readinessPanel, { operation: "close_position" });
+
+  // T031: Listen for readiness acknowledgment changes
+  contentEl.addEventListener("readiness-ack-change", () => {
+    const isBlocked = isReadinessBlocked();
+    contentEl.querySelectorAll(".close-pos-btn").forEach((btn) => {
+      btn.disabled = isBlocked;
+    });
+    const closeAllBtn = document.getElementById("closeAllBtn");
+    if (closeAllBtn) closeAllBtn.disabled = isBlocked;
+  });
+
   const closePositionByTicket = async (ticket, volume) => {
     const body = { ticket: Number(ticket) };
     if (volume !== null && volume !== undefined) {
@@ -192,10 +177,44 @@ export function renderPositions(contentEl, payload, accountPayload) {
         return;
       }
 
-      const closeText = parsed.volume === null ? "full" : `partial (${parsed.volume})`;
-      const approved = confirm(
-        `Close ${closeText} ${type.toUpperCase()} position ${symbol} (${volume} lots)? This is irreversible.`,
-      );
+      // T028: Check readiness before close
+      if (isReadinessBlocked()) {
+        showEnvelope({
+          category: "system",
+          severity: "critical",
+          title: "Operation Blocked",
+          message: "Readiness checks failed. Cannot proceed with closing position.",
+        });
+        target.disabled = false;
+        return;
+      }
+
+      if (isReadinessDegraded() && !isWarningAcknowledged()) {
+        showEnvelope({
+          category: "system",
+          severity: "warning",
+          title: "Warnings Not Acknowledged",
+          message: "You must acknowledge the warnings before proceeding.",
+        });
+        target.disabled = false;
+        return;
+      }
+
+      const closeVolume = parsed.volume === null ? volume : parsed.volume;
+      const approved = await showConfirmationModal({
+        title: "Confirm Close Position",
+        message: "You are about to close a position. This action is irreversible.",
+        details: [
+          { label: "Symbol", value: symbol },
+          { label: "Ticket", value: ticket },
+          { label: "Volume", value: closeVolume },
+          { label: "Direction", value: type }
+        ],
+        riskSummary: "Closing this position will realize any unrealized P&L.",
+        confirmLabel: "Close Position",
+        variant: "danger",
+        requireCheckbox: true
+      });
       if (!approved) {
         target.disabled = false;
         return;
@@ -219,11 +238,13 @@ export function renderPositions(contentEl, payload, accountPayload) {
     if (!positions.length) {
       return;
     }
-    const confirmed = await showDangerCheckboxModal({
+    const confirmed = await showConfirmationModal({
       title: "Close All Positions",
       message: `You are about to close ${positions.length} open position(s).`,
       checkboxLabel: "I understand this action is irreversible.",
       confirmLabel: "Close All",
+      variant: "danger",
+      requireCheckbox: true
     });
     if (!confirmed) {
       return;

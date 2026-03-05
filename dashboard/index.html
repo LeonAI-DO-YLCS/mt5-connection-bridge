@@ -22,24 +22,32 @@
       </section>
 
       <section id="dashboardScreen" class="hidden">
-        <nav id="tabs" class="tabs">
-          <button data-tab="status" class="tab active">Status</button>
-          <button data-tab="positions" class="tab">Positions</button>
-          <button data-tab="orders" class="tab">Orders</button>
-          <button data-tab="symbols" class="tab">Symbols</button>
-          <button data-tab="prices" class="tab">Prices</button>
-          <button data-tab="execute" class="tab">Execute</button>
-          <button data-tab="history" class="tab">Trade History</button>
-          <button data-tab="logs" class="tab">Logs</button>
-          <button data-tab="config" class="tab">Config</button>
-          <button data-tab="metrics" class="tab">Metrics</button>
-          <button id="logoutButton" class="tab tab-danger">Logout</button>
+        <div id="stickyBanner" class="sticky-banner hidden"></div>
+        <nav id="tabs" class="tabs" role="tablist">
+          <button data-tab="status" class="tab active" role="tab" aria-label="Status Tab">Status</button>
+          <button data-tab="positions" class="tab" role="tab" aria-label="Positions Tab">Positions</button>
+          <button data-tab="orders" class="tab" role="tab" aria-label="Orders Tab">Orders</button>
+          <button data-tab="symbols" class="tab" role="tab" aria-label="Symbols Tab">Symbols</button>
+          <button data-tab="prices" class="tab" role="tab" aria-label="Prices Tab">Prices</button>
+          <button data-tab="execute" class="tab" role="tab" aria-label="Execute Tab">Execute</button>
+          <button data-tab="history" class="tab" role="tab" aria-label="Trade History Tab">Trade History</button>
+          <button data-tab="logs" class="tab" role="tab" aria-label="Logs Tab">Logs</button>
+          <button data-tab="config" class="tab" role="tab" aria-label="Config Tab">Config</button>
+          <button data-tab="metrics" class="tab" role="tab" aria-label="Metrics Tab">Metrics</button>
+          <button id="logoutButton" class="tab tab-danger" role="tab" aria-label="Logout">Logout</button>
         </nav>
 
-        <section id="tabContent" class="panel"></section>
+        <div
+          id="messageCenterContainer"
+          class="message-center-container"
+          aria-live="polite"
+        ></div>
+        <div id="timelineDrawer" class="timeline-drawer hidden"></div>
+        <section id="tabContent" class="panel" role="tabpanel"></section>
       </section>
     </main>
 
+    <div id="modalRoot"></div>
     <script type="module" src="/dashboard/js/app.js"></script>
   </body>
 </html>

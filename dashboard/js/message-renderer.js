@@ -6,11 +6,31 @@
  * response is a legacy plain-text error string.
  *
  * Usage:
- *   import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
+ *   import { showEnvelope, showSuccess, showError, showMessage } from "./message-renderer.js";
  *   showEnvelope(envelopeOrError);        // auto-detects envelope vs legacy
  *   showSuccess("Trade executed", data);  // quick success toast
  *   showError("Something broke");         // quick error toast
+ *   showMessage(entry);                   // render a MessageCenterEntry directly
  */
+
+import { copySupportPackage } from "./support-package.js";
+import { pushTimelineEntry } from "./operator-timeline.js";
+
+/* ── Badge Helpers ─────────────────────────────────────────────────── */
+function _severityLabel(severity) {
+  switch (severity) {
+    case "critical":
+      return `<span class="message-severity-label" style="background:#dc3545;color:#fff;">⛔ CRITICAL</span>`;
+    case "high":
+      return `<span class="message-severity-label" style="background:#fd7e14;color:#fff;">⚠️ HIGH</span>`;
+    case "medium":
+      return `<span class="message-severity-label" style="background:#0dcaf0;color:#000;">ℹ️ MEDIUM</span>`;
+    case "low":
+      return `<span class="message-severity-label" style="background:#6c757d;color:#fff;">💡 LOW</span>`;
+    default:
+      return `<span class="message-severity-label" style="background:#198754;color:#fff;">✅ OK</span>`;
+  }
+}
 
 /* ── Severity → colour mapping ─────────────────────────────────────── */
 const SEVERITY_STYLES = {
@@ -27,6 +47,14 @@ let _container = null;
 
 function getContainer() {
   if (_container) return _container;
+
+  // T010: Use the message center container if it exists in the DOM
+  const existing = document.getElementById("messageCenterContainer");
+  if (existing) {
+    _container = existing;
+    return _container;
+  }
+
   _container = document.createElement("div");
   _container.id = "msgToastContainer";
   Object.assign(_container.style, {
@@ -46,9 +74,9 @@ function getContainer() {
 }
 
 /* ── Core render function ─────────────────────────────────────────── */
-function renderToast(html, style, autoCloseMs = 8000) {
+function renderToast(html, style, autoCloseMs = 8000, envData = null) {
   const toast = document.createElement("div");
-  toast.className = "msg-toast";
+  toast.className = `msg-toast message-center-item ${style.customClass || ""}`.trim();
   Object.assign(toast.style, {
     background: style.bg,
     border: `2px solid ${style.border}`,
@@ -108,6 +136,38 @@ function renderToast(html, style, autoCloseMs = 8000) {
     });
   });
 
+  // T011: Copy-to-clipboard for general data-copy buttons
+  toast.querySelectorAll(".copy-btn[data-copy]").forEach((btn) => {
+    const val = btn.getAttribute("data-copy");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(val).then(() => {
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = "📋"; }, 1500);
+      });
+    });
+  });
+
+  // T012: Copy Support Package button
+  toast.querySelectorAll(".copy-support-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (envData) {
+        copySupportPackage({
+          tracking_id: envData.tracking_id,
+          operation: envData.context?.operation || "unknown",
+          symbol: envData.context?.symbol,
+          direction: envData.context?.direction,
+          volume: envData.context?.volume,
+          readiness_status: envData.context?.readiness_status,
+          error_code: envData.code,
+          error_message: envData.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+  });
+
   // Auto-dismiss
   if (autoCloseMs > 0) {
     setTimeout(() => dismiss(toast), autoCloseMs);
@@ -139,7 +199,8 @@ export function showEnvelope(source) {
     : (SEVERITY_STYLES[env.severity] || SEVERITY_STYLES.medium);
 
   const parts = [
-    `<div style="font-weight:700;font-size:14px;margin-bottom:4px;">${style.icon} ${_esc(env.title)}</div>`,
+    `<div>${_severityLabel(env.severity)}</div>`,
+    `<div style="font-weight:700;font-size:14px;margin-bottom:4px;margin-top:4px;">${style.icon} ${_esc(env.title)}</div>`,
     `<div>${_esc(env.message)}</div>`,
   ];
 
@@ -150,34 +211,26 @@ export function showEnvelope(source) {
   if (env.tracking_id) {
     const tid = _esc(env.tracking_id);
     parts.push(
-      `<div style="margin-top:8px;font-size:11px;opacity:0.6;font-family:monospace;display:flex;align-items:center;gap:6px;">` +
-      `<span>Tracking: ${tid} · Code: ${_esc(env.code)}</span>` +
-      `<button class="msg-copy-tid" data-tid="${tid}" title="Copy tracking ID" style="` +
-      `background:none;border:1px solid currentColor;border-radius:4px;padding:1px 5px;` +
-      `cursor:pointer;font-size:10px;color:inherit;opacity:0.8;">📋</button>` +
-      `</div>`
+      `<div class="mono small">ID: <code>${tid}</code> ` +
+      `<button class="copy-btn" data-copy="${tid}" title="Copy Tracking ID">📋</button></div>`
     );
   }
 
   // FR-019: Collapsible Details section showing context key-value pairs
   if (env.context && typeof env.context === "object" && Object.keys(env.context).length > 0) {
-    let ctxRows = "";
-    for (const [k, v] of Object.entries(env.context)) {
-      ctxRows += `<div style="display:flex;gap:8px;padding:2px 0;">` +
-        `<span style="font-weight:600;min-width:100px;">${_esc(k)}:</span>` +
-        `<span>${_esc(String(v))}</span></div>`;
-    }
-    parts.push(
-      `<details style="margin-top:6px;font-size:11px;cursor:pointer;">` +
-      `<summary style="opacity:0.7;user-select:none;">Details</summary>` +
-      `<div style="margin-top:4px;padding:6px 8px;background:rgba(0,0,0,0.05);border-radius:4px;font-family:monospace;">` +
-      `${ctxRows}</div></details>`
-    );
+    parts.push(`<details class="mt-2"><summary class="small">Details</summary><pre class="small">${_esc(JSON.stringify(env.context, null, 2))}</pre></details>`);
   }
 
-  // Longer display for critical errors
-  const autoClose = env.severity === "critical" ? 15000 : (env.ok ? 5000 : 8000);
-  renderToast(parts.join(""), style, autoClose);
+  // T013: Copy Support Package button for critical/high severity
+  if (env.severity === "critical" || env.severity === "high") {
+    parts.push(`<button class="btn btn-sm copy-support-btn mt-2">📋 Copy Support Package</button>`);
+  }
+
+  // T014: Failure messages (critical/high/medium) do not auto-close
+  const autoClose = ["critical", "high", "medium"].includes(env.severity) ? 0 : 8000;
+
+  const customClass = `severity-${env.severity || "medium"}`;
+  renderToast(parts.join(""), { ...style, customClass }, autoClose, env);
 }
 
 /**
@@ -251,4 +304,26 @@ function _esc(str) {
   const d = document.createElement("div");
   d.textContent = String(str);
   return d.innerHTML;
+}
+
+/**
+ * Render a MessageCenterEntry directly.
+ * @param {object} entry
+ */
+export function showMessage(entry) {
+  const env = {
+    severity: entry.severity,
+    title: entry.title,
+    message: entry.message,
+    action: entry.action,
+    tracking_id: entry.tracking_id,
+    context: entry.context,
+    code: entry.code || null,
+    ok: entry.severity === "success" || entry.severity === "low"
+  };
+
+  if (!("code" in env)) env.code = null;
+  if (!("tracking_id" in env)) env.tracking_id = null;
+
+  showEnvelope(env);
 }

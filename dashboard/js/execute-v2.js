@@ -11,6 +11,7 @@
  */
 import { api } from "./app.js";
 import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
+import { showConfirmationModal } from "./confirmation-modal.js";
 
 let checkTimeout = null;
 let _capabilitiesCache = null;
@@ -560,7 +561,25 @@ export async function renderExecute(contentEl) {
 
     const isPending = isPendingType();
     const actionLabel = execType.value.replace(/_/g, " ").toUpperCase();
-    if (!confirm(`Submit ${actionLabel} ${volume} ${val}?`)) return;
+
+    const details = [
+      { label: "Action", value: actionLabel },
+      { label: "Symbol", value: val },
+      { label: "Volume", value: volume },
+      { label: "Type", value: execType.options[execType.selectedIndex].text }
+    ];
+    if (execSL.value) details.push({ label: "Stop Loss", value: execSL.value });
+    if (execTP.value) details.push({ label: "Take Profit", value: execTP.value });
+
+    const confirmed = await showConfirmationModal({
+      title: "Confirm Trade Submission",
+      message: "You are about to submit a trade order. Please review the details below.",
+      details: details,
+      riskSummary: "This will submit a live market order. Ensure your risk parameters are correct.",
+      confirmLabel: "Submit Order",
+      variant: "danger"
+    });
+    if (!confirmed) return;
 
     execSubmitBtn.disabled = true;
     execSubmitBtn.innerText = "Submitting…";

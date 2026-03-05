@@ -1,43 +1,11 @@
 import { api } from "./app.js";
 import { showEnvelope, showSuccess } from "./message-renderer.js";
+import { renderReadinessPanel, isReadinessBlocked } from "./readiness.js";
+import { showConfirmationModal } from "./confirmation-modal.js";
 
 function isGuardedDuplicateError(err) {
   const message = String(err?.message || "");
   return message.includes("Single-flight mode active") || message.includes("Execution queue overload protection");
-}
-
-function showDangerCheckboxModal({ title, message, checkboxLabel, confirmLabel }) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "confirm-modal-overlay";
-    overlay.innerHTML = `
-      <div class="confirm-modal">
-        <h4>${title}</h4>
-        <p>${message}</p>
-        <label class="confirm-checkbox">
-          <input type="checkbox" id="confirmCheckbox"> ${checkboxLabel}
-        </label>
-        <div class="confirm-actions">
-          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-          <button class="btn btn-danger" id="confirmBtn" disabled>${confirmLabel}</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(overlay);
-    const checkbox = overlay.querySelector("#confirmCheckbox");
-    const confirmBtn = overlay.querySelector("#confirmBtn");
-    const close = (result) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    checkbox.addEventListener("change", () => {
-      confirmBtn.disabled = !checkbox.checked;
-    });
-    overlay.querySelector("#cancelBtn").addEventListener("click", () => close(false));
-    confirmBtn.addEventListener("click", () => close(true));
-  });
 }
 
 export function renderOrders(contentEl, payload) {
@@ -98,6 +66,23 @@ export function renderOrders(contentEl, payload) {
   html += `</div>`;
   contentEl.innerHTML = html;
 
+  // T026: Render readiness panel before orders grid
+  const readinessPanel = document.createElement("div");
+  readinessPanel.id = "orders-readiness-panel";
+  const gridEl = contentEl.querySelector(".grid");
+  contentEl.insertBefore(readinessPanel, gridEl);
+  renderReadinessPanel(readinessPanel, { operation: "cancel_order" });
+
+  // T031: Listen for readiness acknowledgment changes
+  contentEl.addEventListener("readiness-ack-change", () => {
+    const isBlocked = isReadinessBlocked();
+    contentEl.querySelectorAll(".cancel-ord-btn").forEach((btn) => {
+      btn.disabled = isBlocked;
+    });
+    const cancelAllBtn = document.getElementById("cancelAllBtn");
+    if (cancelAllBtn) cancelAllBtn.disabled = isBlocked;
+  });
+
   const cancelOrderByTicket = async (ticket) => {
     return api(`/orders/${ticket}`, { method: "DELETE" });
   };
@@ -111,10 +96,31 @@ export function renderOrders(contentEl, payload) {
       const type = target.getAttribute("data-type");
       const price = target.getAttribute("data-price");
 
-      const approved = confirm(
-        `Cancel ${type.replace("_", " ").toUpperCase()} ${volume} ${symbol} @ ${price}? This is irreversible.`,
-      );
+      const approved = await showConfirmationModal({
+        title: "Confirm Cancel Order",
+        message: "You are about to cancel a pending order. This action is irreversible.",
+        details: [
+          { label: "Symbol", value: symbol },
+          { label: "Ticket", value: ticket },
+          { label: "Type", value: type.replace("_", " ").toUpperCase() },
+          { label: "Volume", value: volume },
+          { label: "Price", value: price }
+        ],
+        confirmLabel: "Cancel Order",
+        variant: "danger"
+      });
       if (!approved) {
+        return;
+      }
+
+      // T030: Check readiness before cancel
+      if (isReadinessBlocked()) {
+        showEnvelope({
+          category: "system",
+          severity: "critical",
+          title: "Operation Blocked",
+          message: "Readiness checks failed. Cannot proceed with cancelling order.",
+        });
         return;
       }
 
@@ -137,11 +143,13 @@ export function renderOrders(contentEl, payload) {
     if (!orders.length) {
       return;
     }
-    const confirmed = await showDangerCheckboxModal({
+    const confirmed = await showConfirmationModal({
       title: "Cancel All Pending Orders",
       message: `You are about to cancel ${orders.length} pending order(s).`,
+      requireCheckbox: true,
       checkboxLabel: "I understand this action is irreversible.",
       confirmLabel: "Cancel All",
+      variant: "danger"
     });
     if (!confirmed) {
       return;

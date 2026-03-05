@@ -11,6 +11,7 @@ import { renderOrders } from "./orders.js";
 import { renderHistory } from "./history.js";
 import { renderBrokerSymbols } from "./symbols-browser.js";
 import { showEnvelope, showError } from "./message-renderer.js";
+import { showConfirmationModal } from "./confirmation-modal.js";
 
 function renderRuntimeSummary(container, runtime) {
   if (!runtime) return;
@@ -82,6 +83,29 @@ function setConnectionBanner(disconnected) {
   connectionBanner.classList.toggle("hidden", !disconnected);
 }
 
+function updateStickyBanner(healthOk, readinessData) {
+  const banner = document.getElementById("stickyBanner");
+  if (!banner) return;
+  banner.classList.remove("hidden");
+  banner.classList.remove("connected", "degraded", "disconnected");
+
+  if (!healthOk) {
+    banner.classList.add("disconnected");
+    banner.textContent = "⛔ DISCONNECTED — Bridge is not responding. Check if the bridge process is running.";
+  } else if (readinessData && readinessData.overall_status === "blocked") {
+    banner.classList.add("disconnected");
+    const msg = readinessData.blockers?.[0]?.user_message || 'Critical blocker detected';
+    banner.textContent = `🚫 BLOCKED — ${msg}`;
+  } else if (readinessData && readinessData.overall_status === "degraded") {
+    banner.classList.add("degraded");
+    const msg = readinessData.warnings?.[0]?.user_message || 'Warnings detected';
+    banner.textContent = `⚠️ DEGRADED — ${msg}`;
+  } else {
+    banner.classList.add("connected");
+    banner.textContent = "✅ Connected — Bridge is ready";
+  }
+}
+
 function cacheTabData(tab, data) {
   tabCache.set(tab, { data, at: new Date() });
 }
@@ -142,9 +166,13 @@ async function loadTab(tabName) {
       }
       btn.addEventListener("click", async () => {
         const targetEnabled = !executionEnabled;
-        const confirmed = confirm(
-          `${targetEnabled ? "Enable" : "Disable"} order execution policy?`,
-        );
+        const confirmed = await showConfirmationModal({
+          title: targetEnabled ? "Enable Order Execution" : "Disable Order Execution",
+          message: targetEnabled ? "Enabling execution will allow the bridge to submit real trades to MT5." : "Disabling execution will block all trade submissions.",
+          riskSummary: targetEnabled ? "Live trading will become active." : "No orders will be executed while disabled.",
+          confirmLabel: targetEnabled ? "Enable Execution" : "Disable Execution",
+          variant: targetEnabled ? "danger" : "warning"
+        });
         if (!confirmed) {
           return;
         }
@@ -166,7 +194,7 @@ async function loadTab(tabName) {
 
     const doLoad = async () => {
       try {
-        const [health, worker, metrics, account, terminal, config, capabilities, runtime] = await Promise.all([
+        const [health, worker, metrics, account, terminal, config, capabilities, runtime, readinessResp] = await Promise.all([
           api("/health"),
           api("/worker/state"),
           api("/metrics"),
@@ -175,9 +203,11 @@ async function loadTab(tabName) {
           api("/config"),
           api("/broker-capabilities").catch(() => null),
           api("/diagnostics/runtime").catch(() => null),
+          api("/readiness").catch(() => null),
         ]);
         cacheTabData("status", { health, worker, metrics, account, terminal, config, capabilities, runtime });
         setConnectionBanner(false);
+        updateStickyBanner(!!health, readinessResp);
         renderStatus(tabContent, health, worker, metrics, account, terminal, config, capabilities);
         renderRuntimeSummary(tabContent, runtime);
         envBadge.textContent = config.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
@@ -186,9 +216,11 @@ async function loadTab(tabName) {
       } catch (err) {
         const cached = getCachedTabData("status");
         if (!cached || !isTerminalDisconnectedError(err)) {
+          updateStickyBanner(false, null);
           throw err;
         }
         setConnectionBanner(true);
+        updateStickyBanner(false, null);
         renderStatus(
           tabContent,
           cached.data.health,
