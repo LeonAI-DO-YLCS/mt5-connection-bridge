@@ -9,6 +9,7 @@ class LogEntry(BaseModel):
     timestamp: str
     request: dict[str, Any]
     response: dict[str, Any]
+    outcome: str | None = None
     metadata: dict[str, Any] | None = None
 
 

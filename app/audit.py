@@ -126,9 +126,20 @@ def log_trade(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "request": request_payload,
         "response": response.model_dump(),
+        "outcome": "success" if response.success else "failed",
     }
     if metadata:
-        entry["metadata"] = metadata
+        enriched_metadata = dict(metadata)
+    else:
+        enriched_metadata = {}
+    if response.ticket_id is not None:
+        enriched_metadata.setdefault("ticket_id", response.ticket_id)
+    if response.filled_quantity is not None:
+        enriched_metadata.setdefault("filled_quantity", response.filled_quantity)
+    if response.filled_price is not None:
+        enriched_metadata.setdefault("filled_price", response.filled_price)
+    if enriched_metadata:
+        entry["metadata"] = enriched_metadata
 
     try:
         _append_jsonl(_trade_log_path(), entry)
@@ -141,7 +152,7 @@ def log_trade(
                 "request": request_payload,
                 "response": response.model_dump(),
                 "outcome": "success" if response.success else "failed",
-                "metadata": metadata or {},
+                "metadata": enriched_metadata,
             },
         )
     except Exception as exc:

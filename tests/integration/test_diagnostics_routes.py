@@ -16,13 +16,18 @@ def test_runtime_diagnostics_endpoint(client, auth_headers):
     assert payload["config_fingerprint"]
     assert payload["runtime_state_path"]
     assert payload["worker_state"] in {state.value for state in WorkerState}
+    assert "compatibility_profile" in payload
 
 
 def test_symbol_diagnostics_disconnected(client, auth_headers, monkeypatch):
     from app.routes import diagnostics as diagnostics_route
 
-    monkeypatch.setattr(diagnostics_route, "symbol_map", {"AAPL": SimpleNamespace(mt5_symbol="AAPL")})
-    monkeypatch.setattr(diagnostics_route, "get_state", lambda: WorkerState.DISCONNECTED)
+    monkeypatch.setattr(
+        diagnostics_route, "symbol_map", {"AAPL": SimpleNamespace(mt5_symbol="AAPL")}
+    )
+    monkeypatch.setattr(
+        diagnostics_route, "get_state", lambda: WorkerState.DISCONNECTED
+    )
 
     response = client.get("/diagnostics/symbols", headers=auth_headers)
     payload = response.json()
@@ -33,7 +38,9 @@ def test_symbol_diagnostics_disconnected(client, auth_headers, monkeypatch):
     assert payload["items"][0]["reason_code"] == "MT5_DISCONNECTED"
 
 
-def test_symbol_diagnostics_connected(client, auth_headers, monkeypatch, fake_mt5, completed_future_factory):
+def test_symbol_diagnostics_connected(
+    client, auth_headers, monkeypatch, fake_mt5, completed_future_factory
+):
     from app.routes import diagnostics as diagnostics_route
 
     monkeypatch.setattr(
@@ -45,10 +52,17 @@ def test_symbol_diagnostics_connected(client, auth_headers, monkeypatch, fake_mt
         },
     )
     monkeypatch.setattr(diagnostics_route, "get_state", lambda: WorkerState.AUTHORIZED)
-    monkeypatch.setattr(diagnostics_route, "submit", lambda fn: completed_future_factory(fn()))
+    monkeypatch.setattr(
+        diagnostics_route, "submit", lambda fn: completed_future_factory(fn())
+    )
 
-    fake_mt5.symbols_get = lambda *args, **kwargs: [SimpleNamespace(name="AAPL"), SimpleNamespace(name="AAPLm")]
-    fake_mt5.symbol_info = lambda symbol: SimpleNamespace(visible=True) if symbol == "AAPL" else None
+    fake_mt5.symbols_get = lambda *args, **kwargs: [
+        SimpleNamespace(name="AAPL"),
+        SimpleNamespace(name="AAPLm"),
+    ]
+    fake_mt5.symbol_info = (
+        lambda symbol: SimpleNamespace(visible=True) if symbol == "AAPL" else None
+    )
 
     response = client.get("/diagnostics/symbols", headers=auth_headers)
     payload = response.json()
@@ -56,5 +70,7 @@ def test_symbol_diagnostics_connected(client, auth_headers, monkeypatch, fake_mt
     assert response.status_code == 200
     items = {item["ticker"]: item for item in payload["items"]}
     assert items["AAPL"]["reason_code"] == "OK"
-    assert items["BAD"]["reason_code"] in {"SYMBOL_ALIAS_CANDIDATES", "SYMBOL_NOT_IN_BROKER"}
-
+    assert items["BAD"]["reason_code"] in {
+        "SYMBOL_ALIAS_CANDIDATES",
+        "SYMBOL_NOT_IN_BROKER",
+    }

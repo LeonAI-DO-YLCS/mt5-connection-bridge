@@ -16,7 +16,12 @@ from ..messaging.envelope import MessageEnvelopeException
 
 from ..audit import log_trade
 from ..main import settings, symbol_map
-from ..mappers.trade_mapper import action_to_mt5_order_type, build_order_request, normalize_lot_size, validate_trade_mode
+from ..mappers.trade_mapper import (
+    action_to_mt5_order_type,
+    build_order_request,
+    normalize_lot_size,
+    validate_trade_mode,
+)
 from ..models.trade import TradeRequest, TradeResponse
 from ..mt5_worker import WorkerState, get_queue_depth, get_state, submit
 
@@ -32,6 +37,31 @@ def _safe_pct_delta(a: float, b: float) -> float:
     if b <= 0:
         return 0.0
     return abs(a - b) / b * 100.0
+
+
+def _build_trade_response(
+    req: TradeRequest,
+    *,
+    success: bool,
+    status_name: str,
+    filled_price: float | None = None,
+    filled_quantity: float | None = None,
+    ticket_id: int | None = None,
+    error: str | None = None,
+) -> TradeResponse:
+    actual_quantity = float(filled_quantity or 0.0)
+    requested_quantity = float(req.quantity)
+    return TradeResponse(
+        success=success,
+        status=status_name,
+        requested_quantity=requested_quantity,
+        requested_price=float(req.current_price),
+        filled_price=filled_price,
+        filled_quantity=actual_quantity,
+        unfilled_quantity=max(requested_quantity - actual_quantity, 0.0),
+        ticket_id=ticket_id,
+        error=error,
+    )
 
 
 def _acquire_single_flight(req: TradeRequest) -> str | None:
@@ -74,7 +104,9 @@ async def execute_trade(
     if idempotency_key and request_hash:
         cached = idempotency_store.check(idempotency_key, request_hash)
         if cached is not None:
-            emit_operation_log(ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit")
+            emit_operation_log(
+                ctx, code="IDEMPOTENCY_KEY_REPLAYED", final_outcome="cache_hit"
+            )
             return TradeResponse(**cached.response)
         if idempotency_store.check_conflict(idempotency_key, request_hash):
             raise MessageEnvelopeException(
@@ -89,7 +121,9 @@ async def execute_trade(
         mt5_symbol = symbol_map[req.ticker].mt5_symbol
     else:
         transition(ctx, OperationState.REJECTED)
-        emit_operation_log(ctx, code="SYMBOL_NOT_CONFIGURED", final_outcome="unknown_ticker")
+        emit_operation_log(
+            ctx, code="SYMBOL_NOT_CONFIGURED", final_outcome="unknown_ticker"
+        )
         response = TradeResponse(success=False, error=f"Unknown ticker: {req.ticker}")
         log_trade(req, response, metadata={"state": "blocked_unknown_ticker"})
         raise MessageEnvelopeException(
@@ -117,8 +151,13 @@ async def execute_trade(
 
     if not settings.execution_enabled:
         transition(ctx, OperationState.REJECTED)
-        emit_operation_log(ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled")
-        response = TradeResponse(success=False, error="Execution disabled by policy (EXECUTION_ENABLED=false).")
+        emit_operation_log(
+            ctx, code="EXECUTION_DISABLED", final_outcome="execution_disabled"
+        )
+        response = TradeResponse(
+            success=False,
+            error="Execution disabled by policy (EXECUTION_ENABLED=false).",
+        )
         log_trade(req, response, metadata={"state": "blocked_execution_disabled"})
         raise MessageEnvelopeException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -129,9 +168,15 @@ async def execute_trade(
     gate_error = _acquire_single_flight(req)
     if gate_error:
         transition(ctx, OperationState.REJECTED)
-        emit_operation_log(ctx, code="OVERLOAD_OR_SINGLE_FLIGHT", final_outcome="overload_or_single_flight")
+        emit_operation_log(
+            ctx,
+            code="OVERLOAD_OR_SINGLE_FLIGHT",
+            final_outcome="overload_or_single_flight",
+        )
         response = TradeResponse(success=False, error=gate_error)
-        log_trade(req, response, metadata={"state": "blocked_overload_or_single_flight"})
+        log_trade(
+            req, response, metadata={"state": "blocked_overload_or_single_flight"}
+        )
         raise MessageEnvelopeException(
             status_code=status.HTTP_409_CONFLICT,
             code=ErrorCode.OVERLOAD_OR_SINGLE_FLIGHT,
@@ -141,7 +186,9 @@ async def execute_trade(
     try:
         if get_state() not in (WorkerState.AUTHORIZED, WorkerState.PROCESSING):
             transition(ctx, OperationState.REJECTED)
-            emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="not_connected")
+            emit_operation_log(
+                ctx, code="MT5_DISCONNECTED", final_outcome="not_connected"
+            )
             raise MessageEnvelopeException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 code=ErrorCode.MT5_DISCONNECTED,
@@ -151,23 +198,42 @@ async def execute_trade(
         # ── Transition to DISPATCHING ───────────────────────────────────
         transition(ctx, OperationState.DISPATCHING)
 
-        mt5_symbol_resolved = mt5_symbol  # resolved above (YAML alias or mt5_symbol_direct)
+        mt5_symbol_resolved = (
+            mt5_symbol  # resolved above (YAML alias or mt5_symbol_direct)
+        )
 
         def _execute_in_worker() -> tuple[TradeResponse, str]:
             import MetaTrader5 as mt5  # type: ignore[import-untyped]
 
             symbol_info = mt5.symbol_info(mt5_symbol_resolved)
             if symbol_info is None:
-                return TradeResponse(success=False, error=f"Symbol info unavailable for {mt5_symbol_resolved}"), "symbol_missing"
+                return _build_trade_response(
+                    req,
+                    success=False,
+                    status_name="failed",
+                    error=f"Symbol info unavailable for {mt5_symbol_resolved}",
+                ), "symbol_missing"
 
             # T016: Trade mode enforcement — validate BEFORE touching the broker
             trade_mode_error = validate_trade_mode(symbol_info, req.action)
             if trade_mode_error:
-                return TradeResponse(success=False, error=trade_mode_error), "trade_mode_rejected"
+                return _build_trade_response(
+                    req,
+                    success=False,
+                    status_name="rejected",
+                    error=trade_mode_error,
+                ), "trade_mode_rejected"
 
-            if not symbol_info.visible and not mt5.symbol_select(mt5_symbol_resolved, True):
+            if not symbol_info.visible and not mt5.symbol_select(
+                mt5_symbol_resolved, True
+            ):
                 return (
-                    TradeResponse(success=False, error=f"Failed to select symbol {mt5_symbol_resolved} in Market Watch"),
+                    _build_trade_response(
+                        req,
+                        success=False,
+                        status_name="failed",
+                        error=f"Failed to select symbol {mt5_symbol_resolved} in Market Watch",
+                    ),
                     "symbol_not_selectable",
                 )
 
@@ -175,13 +241,19 @@ async def execute_trade(
             if tick is not None:
                 market_price = float(getattr(tick, "ask", 0.0) or 0.0)
                 if req.action in ("sell", "short"):
-                    market_price = float(getattr(tick, "bid", market_price) or market_price)
+                    market_price = float(
+                        getattr(tick, "bid", market_price) or market_price
+                    )
                 if market_price > 0:
-                    pre_dispatch_delta = _safe_pct_delta(market_price, req.current_price)
+                    pre_dispatch_delta = _safe_pct_delta(
+                        market_price, req.current_price
+                    )
                     if pre_dispatch_delta > settings.max_pre_dispatch_slippage_pct:
                         return (
-                            TradeResponse(
+                            _build_trade_response(
+                                req,
                                 success=False,
+                                status_name="rejected",
                                 error=(
                                     "pre_dispatch_slippage_rejection: "
                                     f"delta_pct={pre_dispatch_delta:.4f} exceeds {settings.max_pre_dispatch_slippage_pct:.4f}"
@@ -193,7 +265,12 @@ async def execute_trade(
             try:
                 normalized_qty = normalize_lot_size(req.quantity, symbol_info)
             except ValueError as exc:
-                return TradeResponse(success=False, error=str(exc)), "invalid_lot"
+                return _build_trade_response(
+                    req,
+                    success=False,
+                    status_name="failed",
+                    error=str(exc),
+                ), "invalid_lot"
 
             order_request = build_order_request(req, mt5_symbol_resolved, symbol_info)
             order_request["volume"] = normalized_qty
@@ -201,13 +278,20 @@ async def execute_trade(
 
             result = mt5.order_send(order_request)
             if result is None:
-                return TradeResponse(success=False, error=f"order_send returned None: {mt5.last_error()}"), "order_send_none"
+                return _build_trade_response(
+                    req,
+                    success=False,
+                    status_name="failed",
+                    error=f"order_send returned None: {mt5.last_error()}",
+                ), "order_send_none"
 
             retcode_done = int(getattr(mt5, "TRADE_RETCODE_DONE", 10009))
             if int(getattr(result, "retcode", -1)) != retcode_done:
                 return (
-                    TradeResponse(
+                    _build_trade_response(
+                        req,
                         success=False,
+                        status_name="rejected",
                         error=(
                             f"Order rejected (retcode={result.retcode}): "
                             f"{getattr(result, 'comment', '')}"
@@ -217,14 +301,20 @@ async def execute_trade(
                 )
 
             filled_price = float(getattr(result, "price", req.current_price))
+            filled_quantity = float(getattr(result, "volume", normalized_qty))
+            ticket_id = int(getattr(result, "deal", 0) or 0)
+            if not ticket_id:
+                ticket_id = int(getattr(result, "order", 0) or 0)
             post_fill_delta = _safe_pct_delta(filled_price, req.current_price)
             if post_fill_delta > settings.max_post_fill_slippage_pct:
                 return (
-                    TradeResponse(
+                    _build_trade_response(
+                        req,
                         success=False,
+                        status_name="rejected",
                         filled_price=filled_price,
-                        filled_quantity=float(getattr(result, "volume", normalized_qty)),
-                        ticket_id=int(getattr(result, "order", 0) or 0),
+                        filled_quantity=filled_quantity,
+                        ticket_id=ticket_id,
                         error=(
                             "post_fill_slippage_exception: "
                             f"delta_pct={post_fill_delta:.4f} exceeds {settings.max_post_fill_slippage_pct:.4f}"
@@ -233,19 +323,28 @@ async def execute_trade(
                     "post_fill_slippage_exception",
                 )
 
+            status_name = (
+                "partial_fill" if 0 < filled_quantity < normalized_qty else "filled"
+            )
             return (
-                TradeResponse(
-                    success=True,
+                _build_trade_response(
+                    req,
+                    success=filled_quantity > 0,
+                    status_name=status_name if filled_quantity > 0 else "failed",
                     filled_price=filled_price,
-                    filled_quantity=float(getattr(result, "volume", normalized_qty)),
-                    ticket_id=int(getattr(result, "order", 0) or 0),
-                    error=None,
+                    filled_quantity=filled_quantity,
+                    ticket_id=ticket_id,
+                    error=None
+                    if filled_quantity > 0
+                    else "Broker returned zero filled quantity",
                 ),
                 "fill_confirmed",
             )
 
         loop = asyncio.get_running_loop()
-        response, trade_state = await asyncio.wrap_future(submit(_execute_in_worker), loop=loop)
+        response, trade_state = await asyncio.wrap_future(
+            submit(_execute_in_worker), loop=loop
+        )
         log_trade(req, response, metadata={"state": trade_state})
         logger.info("MT5 order result: %s", response.model_dump())
 
@@ -255,11 +354,17 @@ async def execute_trade(
         else:
             transition(ctx, OperationState.REJECTED)
 
-        emit_operation_log(ctx, code="REQUEST_OK" if response.success else "REQUEST_REJECTED", final_outcome=trade_state)
+        emit_operation_log(
+            ctx,
+            code="REQUEST_OK" if response.success else "REQUEST_REJECTED",
+            final_outcome=trade_state,
+        )
 
         # Cache for idempotency replay (FR-005)
         if idempotency_key and request_hash:
-            idempotency_store.store(idempotency_key, request_hash, response.model_dump(), "execute_trade")
+            idempotency_store.store(
+                idempotency_key, request_hash, response.model_dump(), "execute_trade"
+            )
 
         if not response.success and trade_state == "trade_mode_rejected":
             raise MessageEnvelopeException(
@@ -271,7 +376,9 @@ async def execute_trade(
         return response
     except ConnectionError as exc:
         transition(ctx, OperationState.FAILED_TERMINAL)
-        emit_operation_log(ctx, code="MT5_DISCONNECTED", final_outcome="connection_error")
+        emit_operation_log(
+            ctx, code="MT5_DISCONNECTED", final_outcome="connection_error"
+        )
         response = TradeResponse(success=False, error=str(exc))
         log_trade(req, response, metadata={"state": "connection_error"})
         raise MessageEnvelopeException(
@@ -283,7 +390,9 @@ async def execute_trade(
         raise
     except Exception as exc:
         transition(ctx, OperationState.FAILED_TERMINAL)
-        emit_operation_log(ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error")
+        emit_operation_log(
+            ctx, code="INTERNAL_SERVER_ERROR", final_outcome="internal_error"
+        )
         response = TradeResponse(success=False, error=str(exc))
         log_trade(req, response, metadata={"state": "internal_error"})
         raise

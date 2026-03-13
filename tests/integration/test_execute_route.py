@@ -11,7 +11,9 @@ BASE_PAYLOAD = {
 }
 
 
-def test_execute_blocked_when_disabled(client, auth_headers, monkeypatch, immediate_submit):
+def test_execute_blocked_when_disabled(
+    client, auth_headers, monkeypatch, immediate_submit
+):
     from app.main import settings
     from app.routes import execute as execute_route
 
@@ -25,7 +27,9 @@ def test_execute_blocked_when_disabled(client, auth_headers, monkeypatch, immedi
     assert payload["code"] == "EXECUTION_DISABLED"
 
 
-def test_execute_pre_dispatch_slippage_rejection(client, auth_headers, monkeypatch, fake_mt5, immediate_submit):
+def test_execute_pre_dispatch_slippage_rejection(
+    client, auth_headers, monkeypatch, fake_mt5, immediate_submit
+):
     from app.main import settings
     from app.routes import execute as execute_route
 
@@ -43,7 +47,9 @@ def test_execute_pre_dispatch_slippage_rejection(client, auth_headers, monkeypat
     assert "pre_dispatch_slippage_rejection" in payload["error"]
 
 
-def test_execute_post_fill_slippage_exception(client, auth_headers, monkeypatch, fake_mt5, immediate_submit):
+def test_execute_post_fill_slippage_exception(
+    client, auth_headers, monkeypatch, fake_mt5, immediate_submit
+):
     from app.main import settings
     from app.routes import execute as execute_route
 
@@ -63,7 +69,9 @@ def test_execute_post_fill_slippage_exception(client, auth_headers, monkeypatch,
     assert "post_fill_slippage_exception" in payload["error"]
 
 
-def test_execute_fill_confirmed_success(client, auth_headers, monkeypatch, fake_mt5, immediate_submit):
+def test_execute_fill_confirmed_success(
+    client, auth_headers, monkeypatch, fake_mt5, immediate_submit
+):
     from app.main import settings
     from app.routes import execute as execute_route
 
@@ -81,10 +89,13 @@ def test_execute_fill_confirmed_success(client, auth_headers, monkeypatch, fake_
 
     assert response.status_code == 200
     assert payload["success"] is True
+    assert payload["status"] == "filled"
     assert payload["ticket_id"] is not None
 
 
-def test_execute_overload_threshold_rejection(client, auth_headers, monkeypatch, immediate_submit):
+def test_execute_overload_threshold_rejection(
+    client, auth_headers, monkeypatch, immediate_submit
+):
     from app.main import settings
     from app.routes import execute as execute_route
 
@@ -100,7 +111,9 @@ def test_execute_overload_threshold_rejection(client, auth_headers, monkeypatch,
     assert payload["code"] == "OVERLOAD_OR_SINGLE_FLIGHT"
 
 
-def test_execute_parallel_submission_behavior(client, auth_headers, monkeypatch, immediate_submit):
+def test_execute_parallel_submission_behavior(
+    client, auth_headers, monkeypatch, immediate_submit
+):
     from app.main import settings
     from app.routes import execute as execute_route
 
