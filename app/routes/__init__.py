@@ -3,10 +3,13 @@ from .broker_symbols import router as broker_symbols_router
 from .close_position import router as close_position_router
 from .diagnostics import router as diagnostics_router
 from .history import router as history_router
+from .margin_check import router as margin_check_router
 from .orders import router as orders_router
 from .pending_order import router as pending_order_router
 from .order_check import router as order_check_router
 from .positions import router as positions_router
+from .profit_calc import router as profit_calc_router
+from .raw_namespace import router as raw_namespace_router
 from .terminal import router as terminal_router
 from .tick import router as tick_router
 
@@ -16,10 +19,13 @@ __all__ = [
     "close_position_router",
     "diagnostics_router",
     "history_router",
+    "margin_check_router",
     "orders_router",
     "pending_order_router",
     "order_check_router",
     "positions_router",
+    "profit_calc_router",
+    "raw_namespace_router",
     "terminal_router",
     "tick_router"
 ]

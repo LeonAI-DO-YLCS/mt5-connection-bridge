@@ -244,6 +244,9 @@ from .routes.order_check import router as order_check_router  # noqa: E402
 from .routes.broker_symbols import router as broker_symbols_router  # noqa: E402
 from .routes.broker_capabilities import router as broker_capabilities_router  # noqa: E402
 from .routes.readiness import router as readiness_router  # noqa: E402
+from .routes.margin_check import router as margin_check_router  # noqa: E402
+from .routes.profit_calc import router as profit_calc_router  # noqa: E402
+from .routes.raw_namespace import router as raw_namespace_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(prices_router)
@@ -266,6 +269,10 @@ app.include_router(order_check_router)
 app.include_router(broker_symbols_router)
 app.include_router(broker_capabilities_router)
 app.include_router(readiness_router)
+app.include_router(margin_check_router)
+app.include_router(profit_calc_router)
+app.include_router(raw_namespace_router)
+
 
 _dashboard_dir = Path(__file__).resolve().parent.parent / "dashboard"
 if _dashboard_dir.exists():

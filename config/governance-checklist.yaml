@@ -1,0 +1,43 @@
+endpoints:
+  /mt5/raw/margin-check:
+    safety_class: safe_read
+    auth_required: true
+    logging_policy: standard
+    readiness_gated: true
+    approved_by: "system"
+    approved_date: "2026-03-03"
+  /mt5/raw/profit-calc:
+    safety_class: safe_read
+    auth_required: true
+    logging_policy: standard
+    readiness_gated: true
+    approved_by: "system"
+    approved_date: "2026-03-03"
+  /mt5/raw/market-book:
+    safety_class: safe_read
+    auth_required: true
+    logging_policy: standard
+    readiness_gated: true
+    approved_by: "system"
+    approved_date: "2026-03-03"
+  /mt5/raw/terminal-info:
+    safety_class: safe_read
+    auth_required: true
+    logging_policy: redacted
+    readiness_gated: true
+    approved_by: "system"
+    approved_date: "2026-03-03"
+  /mt5/raw/account-info:
+    safety_class: safe_read
+    auth_required: true
+    logging_policy: redacted
+    readiness_gated: true
+    approved_by: "system"
+    approved_date: "2026-03-03"
+  /mt5/raw/last-error:
+    safety_class: safe_read
+    auth_required: true
+    logging_policy: standard
+    readiness_gated: true
+    approved_by: "system"
+    approved_date: "2026-03-03"

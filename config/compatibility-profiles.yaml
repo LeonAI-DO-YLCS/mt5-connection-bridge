@@ -1,0 +1,16 @@
+profiles:
+  strict_safe:
+    retry_aggressiveness: "low"
+    optional_field_handling: "drop"
+    gating_strictness: "high"
+    warning_verbosity: "low"
+  balanced:
+    retry_aggressiveness: "medium"
+    optional_field_handling: "preserve"
+    gating_strictness: "medium"
+    warning_verbosity: "medium"
+  max_compat:
+    retry_aggressiveness: "high"
+    optional_field_handling: "synthesize"
+    gating_strictness: "low"
+    warning_verbosity: "high"

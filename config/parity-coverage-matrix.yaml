@@ -1,0 +1,50 @@
+capabilities:
+  connection/session lifecycle:
+    implemented: "yes"
+    safe_domain_endpoint: "/health, /readiness"
+    raw_endpoint: null
+    constraints: "None"
+    known_broker_variance: "None"
+    test_coverage: "pass"
+  terminal/account metadata:
+    implemented: "yes"
+    safe_domain_endpoint: "/account"
+    raw_endpoint: "/mt5/raw/terminal-info, /mt5/raw/account-info"
+    constraints: "None"
+    known_broker_variance: "Varies by broker permission"
+    test_coverage: "pass"
+  symbol and market data:
+    implemented: "yes"
+    safe_domain_endpoint: "/tick/{symbol}"
+    raw_endpoint: null
+    constraints: "None"
+    known_broker_variance: "Tick data availability varies"
+    test_coverage: "pass"
+  order pre-check and calculations:
+    implemented: "yes"
+    safe_domain_endpoint: "/margin-check, /profit-calc"
+    raw_endpoint: "/mt5/raw/margin-check, /mt5/raw/profit-calc"
+    constraints: "None"
+    known_broker_variance: "Margin calculation modes vary"
+    test_coverage: "pass"
+  order submission and management:
+    implemented: "yes"
+    safe_domain_endpoint: "/order"
+    raw_endpoint: null
+    constraints: "Filling modes restricted"
+    known_broker_variance: "FOK vs IOC vs RETURN"
+    test_coverage: "pass"
+  history and reporting:
+    implemented: "partial"
+    safe_domain_endpoint: "/positions, /orders"
+    raw_endpoint: null
+    constraints: "Timeframes limited"
+    known_broker_variance: "Retention limits"
+    test_coverage: "pass"
+  advanced facilities (market book, etc.):
+    implemented: "yes"
+    safe_domain_endpoint: null
+    raw_endpoint: "/mt5/raw/market-book, /mt5/raw/last-error"
+    constraints: "Market book not always supported"
+    known_broker_variance: "Book depth varies"
+    test_coverage: "pass"

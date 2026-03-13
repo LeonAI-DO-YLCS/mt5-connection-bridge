@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from .compatibility import CompatibilityProfile
 
 class RuntimeDiagnostics(BaseModel):
     app_version: str
@@ -20,6 +21,7 @@ class RuntimeDiagnostics(BaseModel):
     last_termination_reason: str | None = None
     log_bundle_hint: str | None = None
     config_fingerprint: str
+    compatibility_profile: CompatibilityProfile
 
 
 class SymbolDiagnostic(BaseModel):

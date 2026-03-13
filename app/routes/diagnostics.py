@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
+from ..config import get_compatibility_profile
 from ..main import app_started_at, app_version, get_runtime_policy_source, settings, symbol_map
 from ..models.diagnostics import RuntimeDiagnostics, SymbolDiagnostic, SymbolsDiagnosticsResponse
 from ..mt5_worker import WorkerState, get_queue_depth, get_state, submit
@@ -72,6 +73,7 @@ async def diagnostics_runtime() -> RuntimeDiagnostics:
         last_termination_reason=last_termination_reason,
         log_bundle_hint=log_bundle_hint,
         config_fingerprint=_fingerprint(),
+        compatibility_profile=get_compatibility_profile(),
     )
 
 
