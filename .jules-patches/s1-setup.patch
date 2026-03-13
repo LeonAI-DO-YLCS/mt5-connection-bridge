@@ -1,0 +1,1883 @@
+diff --git a/.agent/rules/specify-rules.md b/.agent/rules/specify-rules.md
+index 79c7ef7..50e99ba 100644
+--- a/.agent/rules/specify-rules.md
++++ b/.agent/rules/specify-rules.md
+@@ -9,6 +9,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-03
+ - N/A (structured logs only, no persistent storage) (013-phase4-close-comment-compatibility)
+ - Python 3.12 (backend bridge); Bash 5.x (launcher scripts); Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640, PyYAML ≥6.0, uvicorn (014-phase5-launcher-runtime-hardening)
+ - File-based (session.json, launcher log bundles under `logs/bridge/launcher/<run-id>/`) (014-phase5-launcher-runtime-hardening)
++- Python 3.12 (backend), Vanilla JS ES2020+ (dashboard — no changes this phase) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640, PyYAML ≥6.0, httpx (conformance client) (016-phase7-native-parity-surface-and-conformance)
++- N/A (conformance reports written to local filesystem by operator) (016-phase7-native-parity-surface-and-conformance)
+ 
+ - Python 3.12 (backend), Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640 (010-phase1-message-contract-and-taxonomy)
+ 
+@@ -28,9 +30,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
+ Python 3.12 (backend), Vanilla JS ES2020+ (dashboard): Follow standard conventions
+ 
+ ## Recent Changes
++- 016-phase7-native-parity-surface-and-conformance: Added Python 3.12 (backend), Vanilla JS ES2020+ (dashboard — no changes this phase) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640, PyYAML ≥6.0, httpx (conformance client)
+ - 014-phase5-launcher-runtime-hardening: Added Python 3.12 (backend bridge); Bash 5.x (launcher scripts); Vanilla JS ES2020+ (dashboard) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640, PyYAML ≥6.0, uvicorn
+ - 013-phase4-close-comment-compatibility: Added Python 3.12 (backend bridge); Vanilla JS ES2020+ (dashboard — no dashboard changes in this phase) + FastAPI ≥0.104, Pydantic v2 ≥2.5, MetaTrader5 ≥5.0.5640
+-- 011-phase2-readiness-and-prerequisites: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+ 
+ 
+ <!-- MANUAL ADDITIONS START -->
+diff --git a/.jules-prompts/session-01-setup.md b/.jules-prompts/session-01-setup.md
+new file mode 100644
+index 0000000..83de2e5
+--- /dev/null
++++ b/.jules-prompts/session-01-setup.md
+@@ -0,0 +1,39 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture, tech stack, project structure
++- `specs/016-phase7-native-parity-surface-and-conformance/data-model.md` — entity schemas and relationships
++- `specs/016-phase7-native-parity-surface-and-conformance/contracts/api-contracts.md` — API contracts
++- `specs/016-phase7-native-parity-surface-and-conformance/research.md` — technical decisions and constraints
++- `app/config.py` — existing Settings class (you will modify this)
++- `app/models/` — existing model patterns
++
++### Your Tasks — Phase 1: Setup (Shared Infrastructure)
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T001 Create `app/conformance/` directory with empty `__init__.py` at `app/conformance/__init__.py`
++- [ ] T002 [P] Create `config/` directory and empty `config/governance-checklist.yaml` scaffold (YAML with top-level `endpoints: {}` key)
++- [ ] T003 [P] Create `config/compatibility-profiles.yaml` with the three named profiles (`strict_safe`, `balanced`, `max_compat`) and their four dimensions per research.md §4 profile matrix
++- [ ] T004 [P] Create `CompatibilityProfile` Pydantic model in `app/models/compatibility.py` per data-model.md (fields: `name`, `retry_aggressiveness`, `optional_field_handling`, `gating_strictness`, `warning_verbosity`)
++- [ ] T005 [P] Create `ConformanceResult` and `ConformanceReport` Pydantic models in `app/models/conformance.py` per data-model.md
++- [ ] T006 Add `COMPATIBILITY_PROFILE` setting to `app/config.py` (`str`, default `"strict_safe"`, alias `COMPATIBILITY_PROFILE`). Add helper `get_compatibility_profile()` that loads the YAML and returns the matching `CompatibilityProfile` instance.
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T001–T006 Phase 1 setup — models, configs, directories`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/.jules-prompts/session-02-safe-domain.md b/.jules-prompts/session-02-safe-domain.md
+new file mode 100644
+index 0000000..b51ea0e
+--- /dev/null
++++ b/.jules-prompts/session-02-safe-domain.md
+@@ -0,0 +1,41 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture, tech stack, project structure
++- `specs/016-phase7-native-parity-surface-and-conformance/data-model.md` — entity schemas (MarginCheckRequest/Response, ProfitCalcRequest/Response)
++- `specs/016-phase7-native-parity-surface-and-conformance/contracts/api-contracts.md` — API contracts for POST /margin-check and POST /profit-calc
++- `app/routes/__init__.py` — existing router registration pattern
++- `app/routes/order_check.py` — existing order-check route pattern (follow same canonical envelope wrapping)
++- `app/mt5_worker.py` — worker `submit()` function for MT5 calls
++- `app/config.py` — `get_settings()` and symbol resolution helpers
++- `app/auth.py` — `api_key_dependency` for route authentication
++
++### Your Tasks — Phase 2: US1 — Safe Domain Extensions (MVP)
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T007 [P] [US1] Create `MarginCheckRequest` and `MarginCheckResponse` Pydantic models in `app/models/margin.py` per data-model.md
++- [ ] T008 [P] [US1] Create `ProfitCalcRequest` and `ProfitCalcResponse` Pydantic models in `app/models/margin.py` (same file, co-located)
++- [ ] T009 [US1] Implement `POST /margin-check` route in `app/routes/margin_check.py`: validate request, resolve symbol via `symbol_map`, call `mt5.order_calc_margin()` through worker `submit()`, wrap in canonical envelope, gate on readiness (worker state must be `AUTHORIZED`)
++- [ ] T010 [US1] Implement `POST /profit-calc` route in `app/routes/profit_calc.py`: validate request, call `mt5.order_calc_profit()` through worker `submit()`, wrap in canonical envelope, readiness-gated
++- [ ] T011 [US1] Register `margin_check_router` and `profit_calc_router` in `app/routes/__init__.py` and mount in the FastAPI app
++- [ ] T012 [US1] Write unit tests for margin-check and profit-calc in `tests/unit/test_margin_check.py` and `tests/unit/test_profit_calc.py` — mock `mt5.order_calc_margin` and `mt5.order_calc_profit`, verify canonical envelope shape, error codes, readiness gating
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T007–T012 safe domain margin-check and profit-calc`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/.jules-prompts/session-03-expert-namespace.md b/.jules-prompts/session-03-expert-namespace.md
+new file mode 100644
+index 0000000..1d8d3e7
+--- /dev/null
++++ b/.jules-prompts/session-03-expert-namespace.md
+@@ -0,0 +1,45 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture, tech stack, project structure
++- `specs/016-phase7-native-parity-surface-and-conformance/data-model.md` — MarketBookEntry model
++- `specs/016-phase7-native-parity-surface-and-conformance/contracts/api-contracts.md` — API contracts for /mt5/raw/\* namespace
++- `specs/016-phase7-native-parity-surface-and-conformance/research.md` — expert namespace design pattern (§2)
++- `app/routes/__init__.py` — existing router registration pattern
++- `app/mt5_worker.py` — worker `submit()` function for MT5 calls
++- `app/auth.py` — `api_key_dependency` for route authentication
++
++### Your Tasks — Phase 3: US2 — Expert/Advanced Namespace
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T013 [P] [US2] Create `MarketBookEntry` Pydantic model in `app/models/market_book.py` per data-model.md
++- [ ] T014 [US2] Create expert namespace router in `app/routes/raw_namespace.py`:
++  - FastAPI `APIRouter(prefix="/mt5/raw", tags=["advanced"])` with `api_key_dependency`
++  - `GET /margin-check` — query params `symbol`, `volume`, `action`; calls `mt5.order_calc_margin()` via worker; response includes `namespace`, `safety_disclaimer`
++  - `GET /profit-calc` — query params `symbol`, `volume`, `action`, `price_open`, `price_close`; calls `mt5.order_calc_profit()` via worker
++  - `GET /market-book` — query param `symbol`; calls `mt5.market_book_add()`, `mt5.market_book_get()`, `mt5.market_book_release()` via worker; returns list of `MarketBookEntry`
++  - `GET /terminal-info` — calls `mt5.terminal_info()` via worker; returns all fields (not curated)
++  - `GET /account-info` — calls `mt5.account_info()` via worker; returns all fields
++  - `GET /last-error` — calls `mt5.last_error()` via worker; returns raw error tuple
++- [ ] T015 [US2] Register `raw_namespace_router` in `app/routes/__init__.py` and mount in the FastAPI app
++- [ ] T016 [US2] Write unit tests for raw namespace in `tests/unit/test_raw_namespace.py` — mock MT5 functions, verify `namespace` and `safety_disclaimer` fields present in all responses, verify auth required, verify market-book lifecycle
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T013–T016 expert namespace /mt5/raw/* endpoints`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/.jules-prompts/session-04-compatibility.md b/.jules-prompts/session-04-compatibility.md
+new file mode 100644
+index 0000000..50c4d95
+--- /dev/null
++++ b/.jules-prompts/session-04-compatibility.md
+@@ -0,0 +1,36 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture, tech stack, project structure
++- `specs/016-phase7-native-parity-surface-and-conformance/data-model.md` — CompatibilityProfile model
++- `specs/016-phase7-native-parity-surface-and-conformance/contracts/api-contracts.md` — compatibility profile contract (runtime exposure, audit log)
++- `specs/016-phase7-native-parity-surface-and-conformance/research.md` — compatibility profiles design (§4)
++- `app/config.py` — existing Settings class and get_settings()
++- `app/routes/diagnostics.py` — existing diagnostics route
++
++### Your Tasks — Phase 4: US3 — Compatibility Profiles
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T017 [US3] Modify `app/routes/diagnostics.py` to include `compatibility_profile` object in the `/diagnostics/runtime` response — read from `get_compatibility_profile()` helper in config
++- [ ] T018 [US3] Implement profile-change audit logging in `app/config.py`: when `get_compatibility_profile()` detects a different profile than last loaded, emit a structured log entry `{ event: "compatibility_profile_changed", old_profile: "...", new_profile: "...", timestamp: "..." }`
++- [ ] T019 [US3] Write unit tests for compatibility profiles in `tests/unit/test_compatibility.py` — test profile loading from YAML, default profile, invalid profile handling, diagnostics response shape, audit log emission
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T017–T019 compatibility profiles with runtime diagnostics`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/.jules-prompts/session-05-conformance.md b/.jules-prompts/session-05-conformance.md
+new file mode 100644
+index 0000000..d1e1679
+--- /dev/null
++++ b/.jules-prompts/session-05-conformance.md
+@@ -0,0 +1,43 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture, conformance module structure
++- `specs/016-phase7-native-parity-surface-and-conformance/data-model.md` — ConformanceResult, ConformanceReport models
++- `specs/016-phase7-native-parity-surface-and-conformance/contracts/api-contracts.md` — conformance CLI contract (invocation, JSON output, Markdown output)
++- `specs/016-phase7-native-parity-surface-and-conformance/research.md` — conformance harness architecture (§3)
++
++### Your Tasks — Phase 5: US4 — Conformance Harness
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T020 [P] [US4] Create conformance CLI entry point at `app/conformance/__main__.py` — argparse with `--base-url`, `--api-key`, `--include-write-tests`, `--output-json`, `--output-md`
++- [ ] T021 [P] [US4] Create conformance test runner at `app/conformance/runner.py` — orchestrates probe execution by category, collects `ConformanceResult` list, builds `ConformanceReport`
++- [ ] T022 [P] [US4] Create connection probe at `app/conformance/probes/connection.py` — tests `/health`, `/diagnostics/runtime`, `/readiness`; returns list of `ConformanceResult`
++- [ ] T023 [P] [US4] Create symbols probe at `app/conformance/probes/symbols.py` — tests `/broker-capabilities`, symbol resolution; returns `ConformanceResult` list
++- [ ] T024 [P] [US4] Create pricing probe at `app/conformance/probes/pricing.py` — tests `/tick/{symbol}`, price data availability; returns `ConformanceResult` list
++- [ ] T025 [P] [US4] Create calculations probe at `app/conformance/probes/calculations.py` — tests `/margin-check`, `/profit-calc`, `/mt5/raw/margin-check`, `/mt5/raw/profit-calc`; returns `ConformanceResult` list
++- [ ] T026 [P] [US4] Create market-book probe at `app/conformance/probes/market_book.py` — tests `/mt5/raw/market-book`; handles `not_supported` gracefully; returns `ConformanceResult` list
++- [ ] T027 [P] [US4] Create write-tests probe at `app/conformance/probes/write_tests.py` — opt-in only (skipped unless `--include-write-tests`); tests order send + immediate cancel on test account; returns `ConformanceResult` list
++- [ ] T028 [US4] Create report generator at `app/conformance/reporter.py` — takes `ConformanceReport`, writes JSON to stdout or file, generates Markdown summary with pass/warn/fail table, recommendation section per contracts/api-contracts.md §Conformance CLI
++- [ ] T029 [US4] Create `app/conformance/probes/__init__.py` that exports all probe modules
++- [ ] T030 [US4] Wire runner to discover and execute all probes, compute summary stats, generate recommendation based on pass/warn/fail ratios, output via reporter
++- [ ] T031 [US4] Write integration test for conformance harness in `tests/integration/test_conformance.py` — mock bridge API responses, verify report structure matches `ConformanceReport` model, verify JSON and Markdown output
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T020–T031 conformance harness CLI, probes, and reporter`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/.jules-prompts/session-06-governance.md b/.jules-prompts/session-06-governance.md
+new file mode 100644
+index 0000000..49b61c4
+--- /dev/null
++++ b/.jules-prompts/session-06-governance.md
+@@ -0,0 +1,35 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture
++- `specs/016-phase7-native-parity-surface-and-conformance/data-model.md` — GovernanceEntry, ParityCoverageEntry models
++- `specs/016-phase7-native-parity-surface-and-conformance/research.md` — governance checklist (§5), capability inventory (§1)
++
++### Your Tasks — Phase 6: US5 — Governance & Coverage Matrix
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T032 [P] [US5] Create `GovernanceEntry` Pydantic model in `app/models/conformance.py` (append to existing file) per data-model.md
++- [ ] T033 [P] [US5] Create `ParityCoverageEntry` Pydantic model in `app/models/conformance.py` (append to existing file) per data-model.md
++- [ ] T034 [US5] Populate `config/governance-checklist.yaml` with governance entries for all 6 raw endpoints: `/mt5/raw/margin-check`, `/mt5/raw/profit-calc`, `/mt5/raw/market-book`, `/mt5/raw/terminal-info`, `/mt5/raw/account-info`, `/mt5/raw/last-error` — each with `safety_class`, `auth_required`, `logging_policy`, `readiness_gated`
++- [ ] T035 [US5] Create `config/parity-coverage-matrix.yaml` with the 7 MT5 capability categories from research.md §1 — fill `implemented`, `safe_domain_endpoint`, `raw_endpoint`, `constraints`, `known_broker_variance`, `test_coverage` for each capability
++- [ ] T036 [US5] Create a governance validation script at `scripts/validate_governance.py` that loads the YAML and validates all raw endpoints have complete governance entries — exit non-zero if any field is missing
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T032–T036 governance checklist and parity coverage matrix`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/.jules-prompts/session-07-polish.md b/.jules-prompts/session-07-polish.md
+new file mode 100644
+index 0000000..19e217e
+--- /dev/null
++++ b/.jules-prompts/session-07-polish.md
+@@ -0,0 +1,36 @@
++## Context — Phase 7: Native Parity Surface and Conformance
++
++You are implementing **Phase 7 — Native Parity Surface and Conformance** for the **MT5 Connection Bridge** project.
++Branch: `016-phase7-native-parity-surface-and-conformance`
++
++### Required Reading (READ BEFORE WRITING CODE)
++
++Read these files in the repository for full context:
++
++- `specs/016-phase7-native-parity-surface-and-conformance/tasks.md` — your task list (execute ONLY the tasks listed below)
++- `specs/016-phase7-native-parity-surface-and-conformance/plan.md` — architecture, full project structure
++- `specs/016-phase7-native-parity-surface-and-conformance/quickstart.md` — quick test guide to update
++- All `app/routes/*.py` files — verify registration
++- All `app/models/*.py` files — verify docstrings
++
++### Your Tasks — Phase 7: Polish & Cross-Cutting Concerns
++
++Execute ONLY these tasks from `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`:
++
++- [ ] T037 Update `specs/016-phase7-native-parity-surface-and-conformance/quickstart.md` with actual CLI commands for all new endpoints and conformance harness
++- [ ] T038 Verify no existing safe domain endpoints are affected — run full `pytest` suite and confirm all prior tests pass
++- [ ] T039 Run governance validation script: `python scripts/validate_governance.py`
++- [ ] T040 Run conformance suite dry-run (if MT5 available): `python -m app.conformance --base-url http://localhost:8001 --api-key test --output-json /tmp/conformance.json`
++- [ ] T041 Code cleanup — ensure all new files have module docstrings, type hints, and follow project conventions
++
++### Rules
++
++1. **Read first**: Read every file you are about to modify BEFORE making changes.
++2. **Follow exactly**: Each task specifies the exact file, function, and behavior. Follow precisely.
++3. **Scope control**: Do NOT modify files not mentioned in your tasks.
++4. **Mark progress**: After completing each task, mark it as `[x]` in `specs/016-phase7-native-parity-surface-and-conformance/tasks.md`.
++5. **Commit convention**: Commit after each logical group with message format:
++   `feat(016): T037–T041 Phase 7 polish, quickstart, and validation`
++6. **No speckit commands**: Speckit CLI is not available in this environment. Apply all changes manually.
++7. **Preserve existing code**: Only ADD or MODIFY as specified — do not remove unrelated functionality.
++8. **No placeholders**: Every task must produce working code, not TODO comments or stubs.
+diff --git a/app/config.py b/app/config.py
+index 36a8c0d..e9a6e71 100644
+--- a/app/config.py
++++ b/app/config.py
+@@ -106,6 +106,12 @@ class Settings(BaseSettings):
+         description="The unique run ID generated by the launcher script",
+     )
+ 
++    # Conformance and Compatibility Profiles (feature 016-phase7-native-parity-surface-and-conformance)
++    compatibility_profile: str = Field(
++        default="strict_safe",
++        alias="COMPATIBILITY_PROFILE",
++    )
++
+     model_config = {"env_file": ".env", "extra": "ignore"}
+ 
+ 
+@@ -145,3 +151,51 @@ def get_mt5_timeframe(tf_string: str) -> int:
+         valid = ", ".join(sorted(MT5_TIMEFRAME_MAP.keys()))
+         raise ValueError(f"Unknown timeframe '{tf_string}'. Valid: {valid}")
+     return MT5_TIMEFRAME_MAP[tf_upper]
++
++
++def get_compatibility_profile() -> "CompatibilityProfile":
++    """
++    Loads the compatibility profiles YAML and returns the matching CompatibilityProfile 
++    instance for the current COMPATIBILITY_PROFILE setting.
++    """
++    from app.models.compatibility import CompatibilityProfile
++
++    settings = get_settings()
++    profile_name = settings.compatibility_profile
++
++    cfg = PROJECT_ROOT / "config" / "compatibility-profiles.yaml"
++    
++    if not cfg.exists():
++        # Fallback to defaults if the file is missing
++        return CompatibilityProfile(
++            name=profile_name,
++            retry_aggressiveness="low",
++            optional_field_handling="drop",
++            gating_strictness="high",
++            warning_verbosity="low"
++        )
++
++    with cfg.open("r", encoding="utf-8") as fh:
++        raw: dict[str, Any] = yaml.safe_load(fh) or {}
++
++    profiles_data = raw.get("profiles", {})
++    
++    if profile_name not in profiles_data:
++        # Fallback to strict_safe if invalid profile specified
++        profile_data = profiles_data.get("strict_safe", {
++            "retry_aggressiveness": "low",
++            "optional_field_handling": "drop",
++            "gating_strictness": "high",
++            "warning_verbosity": "low"
++        })
++        profile_name = "strict_safe"
++    else:
++        profile_data = profiles_data[profile_name]
++
++    return CompatibilityProfile(
++        name=profile_name,
++        retry_aggressiveness=profile_data.get("retry_aggressiveness", "low"),
++        optional_field_handling=profile_data.get("optional_field_handling", "drop"),
++        gating_strictness=profile_data.get("gating_strictness", "high"),
++        warning_verbosity=profile_data.get("warning_verbosity", "low"),
++    )
+diff --git a/app/conformance/__init__.py b/app/conformance/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/app/models/compatibility.py b/app/models/compatibility.py
+new file mode 100644
+index 0000000..ebe0088
+--- /dev/null
++++ b/app/models/compatibility.py
+@@ -0,0 +1,8 @@
++from pydantic import BaseModel
++
++class CompatibilityProfile(BaseModel):
++    name: str
++    retry_aggressiveness: str
++    optional_field_handling: str
++    gating_strictness: str
++    warning_verbosity: str
+diff --git a/app/models/conformance.py b/app/models/conformance.py
+new file mode 100644
+index 0000000..64c2683
+--- /dev/null
++++ b/app/models/conformance.py
+@@ -0,0 +1,19 @@
++from typing import List, Optional, Dict
++from pydantic import BaseModel, Field
++
++class ConformanceResult(BaseModel):
++    category: str
++    capability: str
++    status: str = Field(description="One of: pass, warn, fail, not_supported")
++    notes: Optional[str] = None
++
++class ConformanceReport(BaseModel):
++    broker_name: Optional[str] = None
++    broker_server: Optional[str] = None
++    terminal_build: Optional[str] = None
++    terminal_version: Optional[str] = None
++    python_version: Optional[str] = None
++    compatibility_profile: str
++    results: List[ConformanceResult]
++    recommended_profile: str
++    summary: Dict[str, int] = Field(description="Counts of pass, warn, fail, not_supported")
+diff --git a/config/compatibility-profiles.yaml b/config/compatibility-profiles.yaml
+new file mode 100644
+index 0000000..a1ec37e
+--- /dev/null
++++ b/config/compatibility-profiles.yaml
+@@ -0,0 +1,16 @@
++profiles:
++  strict_safe:
++    retry_aggressiveness: "low"
++    optional_field_handling: "drop"
++    gating_strictness: "high"
++    warning_verbosity: "low"
++  balanced:
++    retry_aggressiveness: "medium"
++    optional_field_handling: "preserve"
++    gating_strictness: "medium"
++    warning_verbosity: "medium"
++  max_compat:
++    retry_aggressiveness: "high"
++    optional_field_handling: "synthesize"
++    gating_strictness: "low"
++    warning_verbosity: "high"
+diff --git a/config/governance-checklist.yaml b/config/governance-checklist.yaml
+new file mode 100644
+index 0000000..0f3d2fa
+--- /dev/null
++++ b/config/governance-checklist.yaml
+@@ -0,0 +1 @@
++endpoints: {}
+diff --git a/dashboard/css/dashboard.css b/dashboard/css/dashboard.css
+index d209972..5b49cf6 100644
+--- a/dashboard/css/dashboard.css
++++ b/dashboard/css/dashboard.css
+@@ -456,3 +456,217 @@ td {
+   padding: 0.4rem 0;
+   font-size: 0.86rem;
+ }
++
++/* Phase 6: Dashboard Operator Experience ──────────────────────────────────── */
++
++.confirmation-modal-overlay {
++  position: fixed;
++  inset: 0;
++  background: rgba(0, 0, 0, 0.6);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  z-index: 10000;
++}
++
++.confirmation-modal {
++  width: min(500px, 95vw);
++  background: var(--panel);
++  border: 1px solid rgba(255, 255, 255, 0.16);
++  border-radius: 12px;
++  padding: 1.25rem;
++  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
++}
++
++/* FR-023: Banner uses text labels + color, not color alone. */
++.sticky-banner {
++  position: sticky;
++  top: 0;
++  z-index: 9000;
++  padding: 0.75rem 1rem;
++  margin: 1rem 0;
++  border-radius: 8px;
++  font-weight: 600;
++  border: 1px solid rgba(255, 255, 255, 0.18);
++}
++
++.sticky-banner.hidden {
++  display: none;
++}
++
++.sticky-banner.connected {
++  background: rgba(88, 230, 169, 0.15);
++  color: var(--ok);
++}
++
++.sticky-banner.degraded {
++  background: rgba(255, 203, 107, 0.15);
++  color: var(--warn);
++}
++
++.sticky-banner.disconnected {
++  background: rgba(255, 107, 107, 0.15);
++  color: var(--danger);
++}
++
++.message-center-container {
++  display: flex;
++  flex-direction: column;
++  gap: 0.75rem;
++  margin: 1rem 0;
++}
++
++.message-center-item {
++  display: flex;
++  flex-direction: column;
++  gap: 0.5rem;
++  padding: 1rem;
++  border-radius: 8px;
++  border: 1px solid rgba(255, 255, 255, 0.12);
++  background: rgba(16, 35, 56, 0.8);
++}
++
++.severity-critical {
++  border-left: 4px solid var(--danger);
++}
++
++.severity-high {
++  border-left: 4px solid var(--warn);
++}
++
++.severity-medium {
++  border-left: 4px solid var(--accent);
++}
++
++.severity-low {
++  border-left: 4px solid var(--muted);
++}
++
++.severity-success {
++  border-left: 4px solid var(--ok);
++}
++
++.message-severity-label {
++  font-size: 0.7em;
++  font-weight: 700;
++  text-transform: uppercase;
++  padding: 2px 6px;
++  border-radius: 4px;
++  margin-right: 8px;
++}
++
++.message-title {
++  font-weight: 600;
++  font-size: 1.05rem;
++}
++
++.message-body {
++  font-size: 0.95rem;
++  color: var(--text);
++}
++
++.message-action {
++  font-weight: 600;
++  color: var(--accent);
++}
++
++.timeline-drawer {
++  background: var(--card);
++  border: 1px solid rgba(255, 255, 255, 0.08);
++  border-radius: 10px;
++  padding: 1rem;
++  margin: 1rem 0;
++  max-height: 400px;
++  overflow-y: auto;
++}
++
++.timeline-drawer.hidden {
++  display: none;
++}
++
++.timeline-header {
++  font-size: 1.1rem;
++  font-weight: 600;
++  margin-bottom: 0.75rem;
++  padding-bottom: 0.5rem;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
++}
++
++.timeline-entry {
++  display: flex;
++  flex-direction: column;
++  gap: 0.25rem;
++  padding: 0.75rem;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
++}
++
++.timeline-entry:last-child {
++  border-bottom: none;
++}
++
++.timeline-entry .outcome-success {
++  color: var(--ok);
++}
++
++.timeline-entry .outcome-failure {
++  color: var(--danger);
++}
++
++.timeline-meta {
++  display: flex;
++  justify-content: space-between;
++  font-size: 0.8rem;
++  color: var(--muted);
++}
++
++.copy-btn {
++  background: var(--card);
++  border: 1px solid rgba(255, 255, 255, 0.16);
++  color: var(--text);
++  border-radius: 4px;
++  padding: 0.4rem 0.8rem;
++  cursor: pointer;
++  font-size: 0.85rem;
++  display: inline-flex;
++  align-items: center;
++  gap: 0.4rem;
++  transition: background 0.2s;
++}
++
++.copy-btn:hover {
++  background: rgba(255, 255, 255, 0.1);
++}
++
++.confirmation-modal .modal-title {
++  font-size: 1.25rem;
++  font-weight: 600;
++  margin-top: 0;
++  margin-bottom: 0.75rem;
++}
++
++.confirmation-modal-details {
++  display: grid;
++  grid-template-columns: auto 1fr;
++  gap: 4px 12px;
++  font-size: 0.9em;
++}
++
++.confirmation-modal-risk {
++  padding: 8px 12px;
++  border-left: 3px solid var(--warn);
++  margin: 12px 0;
++  font-size: 0.85em;
++}
++
++.confirmation-modal-actions {
++  display: flex;
++  justify-content: flex-end;
++  gap: 0.75rem;
++  margin-top: 1rem;
++}
++
++.confirm-checkbox {
++  display: block;
++  margin-top: 0.8rem;
++  color: var(--muted);
++}
+diff --git a/dashboard/index.html b/dashboard/index.html
+index 9bc93ea..0a4f95c 100644
+--- a/dashboard/index.html
++++ b/dashboard/index.html
+@@ -22,24 +22,32 @@
+       </section>
+ 
+       <section id="dashboardScreen" class="hidden">
+-        <nav id="tabs" class="tabs">
+-          <button data-tab="status" class="tab active">Status</button>
+-          <button data-tab="positions" class="tab">Positions</button>
+-          <button data-tab="orders" class="tab">Orders</button>
+-          <button data-tab="symbols" class="tab">Symbols</button>
+-          <button data-tab="prices" class="tab">Prices</button>
+-          <button data-tab="execute" class="tab">Execute</button>
+-          <button data-tab="history" class="tab">Trade History</button>
+-          <button data-tab="logs" class="tab">Logs</button>
+-          <button data-tab="config" class="tab">Config</button>
+-          <button data-tab="metrics" class="tab">Metrics</button>
+-          <button id="logoutButton" class="tab tab-danger">Logout</button>
++        <div id="stickyBanner" class="sticky-banner hidden"></div>
++        <nav id="tabs" class="tabs" role="tablist">
++          <button data-tab="status" class="tab active" role="tab" aria-label="Status Tab">Status</button>
++          <button data-tab="positions" class="tab" role="tab" aria-label="Positions Tab">Positions</button>
++          <button data-tab="orders" class="tab" role="tab" aria-label="Orders Tab">Orders</button>
++          <button data-tab="symbols" class="tab" role="tab" aria-label="Symbols Tab">Symbols</button>
++          <button data-tab="prices" class="tab" role="tab" aria-label="Prices Tab">Prices</button>
++          <button data-tab="execute" class="tab" role="tab" aria-label="Execute Tab">Execute</button>
++          <button data-tab="history" class="tab" role="tab" aria-label="Trade History Tab">Trade History</button>
++          <button data-tab="logs" class="tab" role="tab" aria-label="Logs Tab">Logs</button>
++          <button data-tab="config" class="tab" role="tab" aria-label="Config Tab">Config</button>
++          <button data-tab="metrics" class="tab" role="tab" aria-label="Metrics Tab">Metrics</button>
++          <button id="logoutButton" class="tab tab-danger" role="tab" aria-label="Logout">Logout</button>
+         </nav>
+ 
+-        <section id="tabContent" class="panel"></section>
++        <div
++          id="messageCenterContainer"
++          class="message-center-container"
++          aria-live="polite"
++        ></div>
++        <div id="timelineDrawer" class="timeline-drawer hidden"></div>
++        <section id="tabContent" class="panel" role="tabpanel"></section>
+       </section>
+     </main>
+ 
++    <div id="modalRoot"></div>
+     <script type="module" src="/dashboard/js/app.js"></script>
+   </body>
+ </html>
+diff --git a/dashboard/js/app.js b/dashboard/js/app.js
+index 96c7e2f..cb89b4d 100644
+--- a/dashboard/js/app.js
++++ b/dashboard/js/app.js
+@@ -11,6 +11,7 @@ import { renderOrders } from "./orders.js";
+ import { renderHistory } from "./history.js";
+ import { renderBrokerSymbols } from "./symbols-browser.js";
+ import { showEnvelope, showError } from "./message-renderer.js";
++import { showConfirmationModal } from "./confirmation-modal.js";
+ 
+ function renderRuntimeSummary(container, runtime) {
+   if (!runtime) return;
+@@ -82,6 +83,29 @@ function setConnectionBanner(disconnected) {
+   connectionBanner.classList.toggle("hidden", !disconnected);
+ }
+ 
++function updateStickyBanner(healthOk, readinessData) {
++  const banner = document.getElementById("stickyBanner");
++  if (!banner) return;
++  banner.classList.remove("hidden");
++  banner.classList.remove("connected", "degraded", "disconnected");
++
++  if (!healthOk) {
++    banner.classList.add("disconnected");
++    banner.textContent = "⛔ DISCONNECTED — Bridge is not responding. Check if the bridge process is running.";
++  } else if (readinessData && readinessData.overall_status === "blocked") {
++    banner.classList.add("disconnected");
++    const msg = readinessData.blockers?.[0]?.user_message || 'Critical blocker detected';
++    banner.textContent = `🚫 BLOCKED — ${msg}`;
++  } else if (readinessData && readinessData.overall_status === "degraded") {
++    banner.classList.add("degraded");
++    const msg = readinessData.warnings?.[0]?.user_message || 'Warnings detected';
++    banner.textContent = `⚠️ DEGRADED — ${msg}`;
++  } else {
++    banner.classList.add("connected");
++    banner.textContent = "✅ Connected — Bridge is ready";
++  }
++}
++
+ function cacheTabData(tab, data) {
+   tabCache.set(tab, { data, at: new Date() });
+ }
+@@ -142,9 +166,13 @@ async function loadTab(tabName) {
+       }
+       btn.addEventListener("click", async () => {
+         const targetEnabled = !executionEnabled;
+-        const confirmed = confirm(
+-          `${targetEnabled ? "Enable" : "Disable"} order execution policy?`,
+-        );
++        const confirmed = await showConfirmationModal({
++          title: targetEnabled ? "Enable Order Execution" : "Disable Order Execution",
++          message: targetEnabled ? "Enabling execution will allow the bridge to submit real trades to MT5." : "Disabling execution will block all trade submissions.",
++          riskSummary: targetEnabled ? "Live trading will become active." : "No orders will be executed while disabled.",
++          confirmLabel: targetEnabled ? "Enable Execution" : "Disable Execution",
++          variant: targetEnabled ? "danger" : "warning"
++        });
+         if (!confirmed) {
+           return;
+         }
+@@ -166,7 +194,7 @@ async function loadTab(tabName) {
+ 
+     const doLoad = async () => {
+       try {
+-        const [health, worker, metrics, account, terminal, config, capabilities, runtime] = await Promise.all([
++        const [health, worker, metrics, account, terminal, config, capabilities, runtime, readinessResp] = await Promise.all([
+           api("/health"),
+           api("/worker/state"),
+           api("/metrics"),
+@@ -175,9 +203,11 @@ async function loadTab(tabName) {
+           api("/config"),
+           api("/broker-capabilities").catch(() => null),
+           api("/diagnostics/runtime").catch(() => null),
++          api("/readiness").catch(() => null),
+         ]);
+         cacheTabData("status", { health, worker, metrics, account, terminal, config, capabilities, runtime });
+         setConnectionBanner(false);
++        updateStickyBanner(!!health, readinessResp);
+         renderStatus(tabContent, health, worker, metrics, account, terminal, config, capabilities);
+         renderRuntimeSummary(tabContent, runtime);
+         envBadge.textContent = config.execution_enabled ? "LIVE ENABLED" : "EXECUTION BLOCKED";
+@@ -186,9 +216,11 @@ async function loadTab(tabName) {
+       } catch (err) {
+         const cached = getCachedTabData("status");
+         if (!cached || !isTerminalDisconnectedError(err)) {
++          updateStickyBanner(false, null);
+           throw err;
+         }
+         setConnectionBanner(true);
++        updateStickyBanner(false, null);
+         renderStatus(
+           tabContent,
+           cached.data.health,
+diff --git a/dashboard/js/confirmation-modal.js b/dashboard/js/confirmation-modal.js
+new file mode 100644
+index 0000000..4cad50a
+--- /dev/null
++++ b/dashboard/js/confirmation-modal.js
+@@ -0,0 +1,166 @@
++/** MT5 Bridge — Shared Confirmation Modal (Phase 6). */
++
++export function showConfirmationModal(config) {
++  return new Promise((resolve) => {
++    const previousFocus = document.activeElement;
++
++    const {
++      title,
++      message,
++      details,
++      riskSummary,
++      confirmLabel,
++      cancelLabel = "Cancel",
++      variant = "primary",
++      requireCheckbox,
++      checkboxLabel = "I understand this action is irreversible"
++    } = config;
++
++    const overlay = document.createElement("div");
++    overlay.className = "confirmation-modal-overlay";
++
++    const modal = document.createElement("div");
++    modal.className = "confirmation-modal";
++    modal.setAttribute("role", "dialog");
++    modal.setAttribute("aria-modal", "true");
++    modal.setAttribute("aria-labelledby", "modal-title");
++    modal.setAttribute("aria-describedby", "modal-desc");
++
++    const titleEl = document.createElement("h4");
++    titleEl.id = "modal-title";
++    titleEl.textContent = title;
++    modal.appendChild(titleEl);
++
++    const descEl = document.createElement("p");
++    descEl.id = "modal-desc";
++    descEl.textContent = message;
++    modal.appendChild(descEl);
++
++    if (details && details.length > 0) {
++      const detailsEl = document.createElement("div");
++      detailsEl.className = "confirmation-modal-details";
++      details.forEach(d => {
++        const labelEl = document.createElement("span");
++        labelEl.className = "detail-label";
++        labelEl.textContent = `${d.label}:`;
++        const valueEl = document.createElement("span");
++        valueEl.className = "detail-value";
++        valueEl.textContent = d.value;
++        detailsEl.appendChild(labelEl);
++        detailsEl.appendChild(document.createTextNode(" "));
++        detailsEl.appendChild(valueEl);
++        detailsEl.appendChild(document.createElement("br"));
++      });
++      modal.appendChild(detailsEl);
++    }
++
++    if (riskSummary) {
++      const riskEl = document.createElement("div");
++      riskEl.className = "confirmation-modal-risk";
++      riskEl.textContent = `⚠️ ${riskSummary}`;
++      modal.appendChild(riskEl);
++    }
++
++    let checkbox = null;
++    if (requireCheckbox) {
++      const labelEl = document.createElement("label");
++      labelEl.className = "confirm-checkbox";
++      checkbox = document.createElement("input");
++      checkbox.type = "checkbox";
++      checkbox.id = "modalConfirmCheckbox";
++      labelEl.appendChild(checkbox);
++      labelEl.appendChild(document.createTextNode(` ${checkboxLabel || "I understand this action is irreversible"}`));
++      modal.appendChild(labelEl);
++    }
++
++    const actionsEl = document.createElement("div");
++    actionsEl.className = "confirmation-modal-actions";
++
++    const cancelBtn = document.createElement("button");
++    cancelBtn.className = "btn btn-secondary";
++    cancelBtn.id = "modalCancelBtn";
++    cancelBtn.textContent = cancelLabel;
++
++    const confirmBtn = document.createElement("button");
++    // fallback variant is primary if not provided or default
++    const validVariant = (variant && variant !== 'default') ? variant : 'primary';
++    confirmBtn.className = `btn btn-${validVariant}`;
++    confirmBtn.id = "modalConfirmBtn";
++    confirmBtn.textContent = confirmLabel;
++
++    if (requireCheckbox) {
++      confirmBtn.disabled = true;
++      checkbox.addEventListener("change", () => {
++        confirmBtn.disabled = !checkbox.checked;
++      });
++    }
++
++    actionsEl.appendChild(cancelBtn);
++    actionsEl.appendChild(confirmBtn);
++    modal.appendChild(actionsEl);
++
++    overlay.appendChild(modal);
++
++    const modalRoot = document.getElementById("modalRoot") || document.body;
++    modalRoot.appendChild(overlay);
++
++    const cleanup = () => {
++      document.removeEventListener("keydown", handleKeydown);
++      overlay.remove();
++      if (previousFocus && typeof previousFocus.focus === 'function') {
++        previousFocus.focus();
++      }
++    };
++
++    const handleConfirm = () => {
++      if (confirmBtn.disabled) return;
++      cleanup();
++      resolve(true);
++    };
++
++    const handleCancel = () => {
++      cleanup();
++      resolve(false);
++    };
++
++    cancelBtn.addEventListener("click", handleCancel);
++    confirmBtn.addEventListener("click", handleConfirm);
++
++    const handleKeydown = (e) => {
++      if (e.key === "Escape") {
++        e.preventDefault();
++        handleCancel();
++      } else if (e.key === "Enter") {
++        if (document.activeElement === confirmBtn) {
++          e.preventDefault();
++          handleConfirm();
++        }
++      } else if (e.key === "Tab") {
++        const focusableElements = modal.querySelectorAll(
++          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
++        );
++        if (focusableElements.length === 0) return;
++        
++        const firstElement = focusableElements[0];
++        const lastElement = focusableElements[focusableElements.length - 1];
++
++        if (e.shiftKey) {
++          if (document.activeElement === firstElement) {
++            e.preventDefault();
++            lastElement.focus();
++          }
++        } else {
++          if (document.activeElement === lastElement) {
++            e.preventDefault();
++            firstElement.focus();
++          }
++        }
++      }
++    };
++
++    document.addEventListener("keydown", handleKeydown);
++
++    // Initial focus
++    cancelBtn.focus();
++  });
++}
+diff --git a/dashboard/js/execute-v2.js b/dashboard/js/execute-v2.js
+index bfe13f5..898aa78 100644
+--- a/dashboard/js/execute-v2.js
++++ b/dashboard/js/execute-v2.js
+@@ -11,6 +11,7 @@
+  */
+ import { api } from "./app.js";
+ import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
++import { showConfirmationModal } from "./confirmation-modal.js";
+ 
+ let checkTimeout = null;
+ let _capabilitiesCache = null;
+@@ -560,7 +561,25 @@ export async function renderExecute(contentEl) {
+ 
+     const isPending = isPendingType();
+     const actionLabel = execType.value.replace(/_/g, " ").toUpperCase();
+-    if (!confirm(`Submit ${actionLabel} ${volume} ${val}?`)) return;
++
++    const details = [
++      { label: "Action", value: actionLabel },
++      { label: "Symbol", value: val },
++      { label: "Volume", value: volume },
++      { label: "Type", value: execType.options[execType.selectedIndex].text }
++    ];
++    if (execSL.value) details.push({ label: "Stop Loss", value: execSL.value });
++    if (execTP.value) details.push({ label: "Take Profit", value: execTP.value });
++
++    const confirmed = await showConfirmationModal({
++      title: "Confirm Trade Submission",
++      message: "You are about to submit a trade order. Please review the details below.",
++      details: details,
++      riskSummary: "This will submit a live market order. Ensure your risk parameters are correct.",
++      confirmLabel: "Submit Order",
++      variant: "danger"
++    });
++    if (!confirmed) return;
+ 
+     execSubmitBtn.disabled = true;
+     execSubmitBtn.innerText = "Submitting…";
+diff --git a/dashboard/js/message-renderer.js b/dashboard/js/message-renderer.js
+index d86ce57..d0f816e 100644
+--- a/dashboard/js/message-renderer.js
++++ b/dashboard/js/message-renderer.js
+@@ -6,12 +6,32 @@
+  * response is a legacy plain-text error string.
+  *
+  * Usage:
+- *   import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
++ *   import { showEnvelope, showSuccess, showError, showMessage } from "./message-renderer.js";
+  *   showEnvelope(envelopeOrError);        // auto-detects envelope vs legacy
+  *   showSuccess("Trade executed", data);  // quick success toast
+  *   showError("Something broke");         // quick error toast
++ *   showMessage(entry);                   // render a MessageCenterEntry directly
+  */
+ 
++import { copySupportPackage } from "./support-package.js";
++import { pushTimelineEntry } from "./operator-timeline.js";
++
++/* ── Badge Helpers ─────────────────────────────────────────────────── */
++function _severityLabel(severity) {
++  switch (severity) {
++    case "critical":
++      return `<span class="message-severity-label" style="background:#dc3545;color:#fff;">⛔ CRITICAL</span>`;
++    case "high":
++      return `<span class="message-severity-label" style="background:#fd7e14;color:#fff;">⚠️ HIGH</span>`;
++    case "medium":
++      return `<span class="message-severity-label" style="background:#0dcaf0;color:#000;">ℹ️ MEDIUM</span>`;
++    case "low":
++      return `<span class="message-severity-label" style="background:#6c757d;color:#fff;">💡 LOW</span>`;
++    default:
++      return `<span class="message-severity-label" style="background:#198754;color:#fff;">✅ OK</span>`;
++  }
++}
++
+ /* ── Severity → colour mapping ─────────────────────────────────────── */
+ const SEVERITY_STYLES = {
+   low:      { bg: "#e8f5e9", border: "#43a047", icon: "✅", text: "#1b5e20" },
+@@ -27,6 +47,14 @@ let _container = null;
+ 
+ function getContainer() {
+   if (_container) return _container;
++
++  // T010: Use the message center container if it exists in the DOM
++  const existing = document.getElementById("messageCenterContainer");
++  if (existing) {
++    _container = existing;
++    return _container;
++  }
++
+   _container = document.createElement("div");
+   _container.id = "msgToastContainer";
+   Object.assign(_container.style, {
+@@ -46,9 +74,9 @@ function getContainer() {
+ }
+ 
+ /* ── Core render function ─────────────────────────────────────────── */
+-function renderToast(html, style, autoCloseMs = 8000) {
++function renderToast(html, style, autoCloseMs = 8000, envData = null) {
+   const toast = document.createElement("div");
+-  toast.className = "msg-toast";
++  toast.className = `msg-toast message-center-item ${style.customClass || ""}`.trim();
+   Object.assign(toast.style, {
+     background: style.bg,
+     border: `2px solid ${style.border}`,
+@@ -108,6 +136,38 @@ function renderToast(html, style, autoCloseMs = 8000) {
+     });
+   });
+ 
++  // T011: Copy-to-clipboard for general data-copy buttons
++  toast.querySelectorAll(".copy-btn[data-copy]").forEach((btn) => {
++    const val = btn.getAttribute("data-copy");
++    btn.addEventListener("click", (e) => {
++      e.stopPropagation();
++      navigator.clipboard.writeText(val).then(() => {
++        btn.textContent = "Copied!";
++        setTimeout(() => { btn.textContent = "📋"; }, 1500);
++      });
++    });
++  });
++
++  // T012: Copy Support Package button
++  toast.querySelectorAll(".copy-support-btn").forEach((btn) => {
++    btn.addEventListener("click", (e) => {
++      e.stopPropagation();
++      if (envData) {
++        copySupportPackage({
++          tracking_id: envData.tracking_id,
++          operation: envData.context?.operation || "unknown",
++          symbol: envData.context?.symbol,
++          direction: envData.context?.direction,
++          volume: envData.context?.volume,
++          readiness_status: envData.context?.readiness_status,
++          error_code: envData.code,
++          error_message: envData.message,
++          timestamp: new Date().toISOString()
++        });
++      }
++    });
++  });
++
+   // Auto-dismiss
+   if (autoCloseMs > 0) {
+     setTimeout(() => dismiss(toast), autoCloseMs);
+@@ -139,7 +199,8 @@ export function showEnvelope(source) {
+     : (SEVERITY_STYLES[env.severity] || SEVERITY_STYLES.medium);
+ 
+   const parts = [
+-    `<div style="font-weight:700;font-size:14px;margin-bottom:4px;">${style.icon} ${_esc(env.title)}</div>`,
++    `<div>${_severityLabel(env.severity)}</div>`,
++    `<div style="font-weight:700;font-size:14px;margin-bottom:4px;margin-top:4px;">${style.icon} ${_esc(env.title)}</div>`,
+     `<div>${_esc(env.message)}</div>`,
+   ];
+ 
+@@ -150,34 +211,26 @@ export function showEnvelope(source) {
+   if (env.tracking_id) {
+     const tid = _esc(env.tracking_id);
+     parts.push(
+-      `<div style="margin-top:8px;font-size:11px;opacity:0.6;font-family:monospace;display:flex;align-items:center;gap:6px;">` +
+-      `<span>Tracking: ${tid} · Code: ${_esc(env.code)}</span>` +
+-      `<button class="msg-copy-tid" data-tid="${tid}" title="Copy tracking ID" style="` +
+-      `background:none;border:1px solid currentColor;border-radius:4px;padding:1px 5px;` +
+-      `cursor:pointer;font-size:10px;color:inherit;opacity:0.8;">📋</button>` +
+-      `</div>`
++      `<div class="mono small">ID: <code>${tid}</code> ` +
++      `<button class="copy-btn" data-copy="${tid}" title="Copy Tracking ID">📋</button></div>`
+     );
+   }
+ 
+   // FR-019: Collapsible Details section showing context key-value pairs
+   if (env.context && typeof env.context === "object" && Object.keys(env.context).length > 0) {
+-    let ctxRows = "";
+-    for (const [k, v] of Object.entries(env.context)) {
+-      ctxRows += `<div style="display:flex;gap:8px;padding:2px 0;">` +
+-        `<span style="font-weight:600;min-width:100px;">${_esc(k)}:</span>` +
+-        `<span>${_esc(String(v))}</span></div>`;
+-    }
+-    parts.push(
+-      `<details style="margin-top:6px;font-size:11px;cursor:pointer;">` +
+-      `<summary style="opacity:0.7;user-select:none;">Details</summary>` +
+-      `<div style="margin-top:4px;padding:6px 8px;background:rgba(0,0,0,0.05);border-radius:4px;font-family:monospace;">` +
+-      `${ctxRows}</div></details>`
+-    );
++    parts.push(`<details class="mt-2"><summary class="small">Details</summary><pre class="small">${_esc(JSON.stringify(env.context, null, 2))}</pre></details>`);
++  }
++
++  // T013: Copy Support Package button for critical/high severity
++  if (env.severity === "critical" || env.severity === "high") {
++    parts.push(`<button class="btn btn-sm copy-support-btn mt-2">📋 Copy Support Package</button>`);
+   }
+ 
+-  // Longer display for critical errors
+-  const autoClose = env.severity === "critical" ? 15000 : (env.ok ? 5000 : 8000);
+-  renderToast(parts.join(""), style, autoClose);
++  // T014: Failure messages (critical/high/medium) do not auto-close
++  const autoClose = ["critical", "high", "medium"].includes(env.severity) ? 0 : 8000;
++
++  const customClass = `severity-${env.severity || "medium"}`;
++  renderToast(parts.join(""), { ...style, customClass }, autoClose, env);
+ }
+ 
+ /**
+@@ -252,3 +305,25 @@ function _esc(str) {
+   d.textContent = String(str);
+   return d.innerHTML;
+ }
++
++/**
++ * Render a MessageCenterEntry directly.
++ * @param {object} entry
++ */
++export function showMessage(entry) {
++  const env = {
++    severity: entry.severity,
++    title: entry.title,
++    message: entry.message,
++    action: entry.action,
++    tracking_id: entry.tracking_id,
++    context: entry.context,
++    code: entry.code || null,
++    ok: entry.severity === "success" || entry.severity === "low"
++  };
++
++  if (!("code" in env)) env.code = null;
++  if (!("tracking_id" in env)) env.tracking_id = null;
++
++  showEnvelope(env);
++}
+diff --git a/dashboard/js/operator-timeline.js b/dashboard/js/operator-timeline.js
+new file mode 100644
+index 0000000..63be828
+--- /dev/null
++++ b/dashboard/js/operator-timeline.js
+@@ -0,0 +1,88 @@
++/** MT5 Bridge — Operator Timeline (Phase 6). */
++
++let _entries = [];
++
++try {
++  const stored = sessionStorage.getItem("mt5_timeline");
++  if (stored) {
++    _entries = JSON.parse(stored);
++    if (!Array.isArray(_entries)) {
++      _entries = [];
++    }
++  }
++} catch (e) {
++  _entries = [];
++}
++
++export function pushTimelineEntry(entry) {
++  _entries.unshift(entry);
++  if (_entries.length > 50) {
++    _entries.pop();
++  }
++  try {
++    sessionStorage.setItem("mt5_timeline", JSON.stringify(_entries));
++  } catch (e) {
++    // Ignore storage errors
++  }
++}
++
++export function getTimelineEntries() {
++  return [..._entries];
++}
++
++export function renderTimeline(containerEl) {
++  if (!containerEl) return;
++  containerEl.innerHTML = "";
++
++  if (_entries.length === 0) {
++    const emptyMsg = document.createElement("p");
++    emptyMsg.className = "text-muted";
++    emptyMsg.textContent = "No operations yet in this session.";
++    containerEl.appendChild(emptyMsg);
++    
++    // Still render the clear button (or we could choose not to, but the prompt says to render it "at the bottom")
++    const clearBtn = document.createElement("button");
++    clearBtn.className = "btn btn-secondary";
++    clearBtn.style.marginTop = "10px";
++    clearBtn.textContent = "Clear Timeline";
++    clearBtn.addEventListener("click", () => {
++      _entries = [];
++      try {
++        sessionStorage.removeItem("mt5_timeline");
++      } catch (e) {}
++      renderTimeline(containerEl);
++    });
++    containerEl.appendChild(clearBtn);
++    return;
++  }
++
++  _entries.forEach(entry => {
++    const div = document.createElement("div");
++    div.className = "timeline-entry";
++    
++    const icon = entry.outcome === "success" ? "✅" : "❌";
++    
++    div.innerHTML = `
++      ${icon}
++      <span class="outcome-${entry.outcome}">${entry.action}</span>
++      <span class="mono text-muted">${entry.code || "—"}</span>
++      <span class="mono small">${entry.tracking_id ? entry.tracking_id.slice(0, 12) + "…" : "—"}</span>
++      <span class="text-muted small">${new Date(entry.timestamp).toLocaleTimeString()}</span>
++    `;
++    containerEl.appendChild(div);
++  });
++
++  const clearBtn = document.createElement("button");
++  clearBtn.className = "btn btn-secondary";
++  clearBtn.style.marginTop = "10px";
++  clearBtn.textContent = "Clear Timeline";
++  clearBtn.addEventListener("click", () => {
++    _entries = [];
++    try {
++      sessionStorage.removeItem("mt5_timeline");
++    } catch (e) {}
++    renderTimeline(containerEl);
++  });
++  
++  containerEl.appendChild(clearBtn);
++}
+diff --git a/dashboard/js/orders.js b/dashboard/js/orders.js
+index 8a3b3c9..193de64 100644
+--- a/dashboard/js/orders.js
++++ b/dashboard/js/orders.js
+@@ -1,45 +1,13 @@
+ import { api } from "./app.js";
+ import { showEnvelope, showSuccess } from "./message-renderer.js";
++import { renderReadinessPanel, isReadinessBlocked } from "./readiness.js";
++import { showConfirmationModal } from "./confirmation-modal.js";
+ 
+ function isGuardedDuplicateError(err) {
+   const message = String(err?.message || "");
+   return message.includes("Single-flight mode active") || message.includes("Execution queue overload protection");
+ }
+ 
+-function showDangerCheckboxModal({ title, message, checkboxLabel, confirmLabel }) {
+-  return new Promise((resolve) => {
+-    const overlay = document.createElement("div");
+-    overlay.className = "confirm-modal-overlay";
+-    overlay.innerHTML = `
+-      <div class="confirm-modal">
+-        <h4>${title}</h4>
+-        <p>${message}</p>
+-        <label class="confirm-checkbox">
+-          <input type="checkbox" id="confirmCheckbox"> ${checkboxLabel}
+-        </label>
+-        <div class="confirm-actions">
+-          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+-          <button class="btn btn-danger" id="confirmBtn" disabled>${confirmLabel}</button>
+-        </div>
+-      </div>
+-    `;
+-
+-    document.body.appendChild(overlay);
+-    const checkbox = overlay.querySelector("#confirmCheckbox");
+-    const confirmBtn = overlay.querySelector("#confirmBtn");
+-    const close = (result) => {
+-      overlay.remove();
+-      resolve(result);
+-    };
+-
+-    checkbox.addEventListener("change", () => {
+-      confirmBtn.disabled = !checkbox.checked;
+-    });
+-    overlay.querySelector("#cancelBtn").addEventListener("click", () => close(false));
+-    confirmBtn.addEventListener("click", () => close(true));
+-  });
+-}
+-
+ export function renderOrders(contentEl, payload) {
+   const orders = payload?.orders || [];
+   let html = `
+@@ -98,6 +66,23 @@ export function renderOrders(contentEl, payload) {
+   html += `</div>`;
+   contentEl.innerHTML = html;
+ 
++  // T026: Render readiness panel before orders grid
++  const readinessPanel = document.createElement("div");
++  readinessPanel.id = "orders-readiness-panel";
++  const gridEl = contentEl.querySelector(".grid");
++  contentEl.insertBefore(readinessPanel, gridEl);
++  renderReadinessPanel(readinessPanel, { operation: "cancel_order" });
++
++  // T031: Listen for readiness acknowledgment changes
++  contentEl.addEventListener("readiness-ack-change", () => {
++    const isBlocked = isReadinessBlocked();
++    contentEl.querySelectorAll(".cancel-ord-btn").forEach((btn) => {
++      btn.disabled = isBlocked;
++    });
++    const cancelAllBtn = document.getElementById("cancelAllBtn");
++    if (cancelAllBtn) cancelAllBtn.disabled = isBlocked;
++  });
++
+   const cancelOrderByTicket = async (ticket) => {
+     return api(`/orders/${ticket}`, { method: "DELETE" });
+   };
+@@ -111,13 +96,34 @@ export function renderOrders(contentEl, payload) {
+       const type = target.getAttribute("data-type");
+       const price = target.getAttribute("data-price");
+ 
+-      const approved = confirm(
+-        `Cancel ${type.replace("_", " ").toUpperCase()} ${volume} ${symbol} @ ${price}? This is irreversible.`,
+-      );
++      const approved = await showConfirmationModal({
++        title: "Confirm Cancel Order",
++        message: "You are about to cancel a pending order. This action is irreversible.",
++        details: [
++          { label: "Symbol", value: symbol },
++          { label: "Ticket", value: ticket },
++          { label: "Type", value: type.replace("_", " ").toUpperCase() },
++          { label: "Volume", value: volume },
++          { label: "Price", value: price }
++        ],
++        confirmLabel: "Cancel Order",
++        variant: "danger"
++      });
+       if (!approved) {
+         return;
+       }
+ 
++      // T030: Check readiness before cancel
++      if (isReadinessBlocked()) {
++        showEnvelope({
++          category: "system",
++          severity: "critical",
++          title: "Operation Blocked",
++          message: "Readiness checks failed. Cannot proceed with cancelling order.",
++        });
++        return;
++      }
++
+       target.disabled = true;
+       try {
+         await cancelOrderByTicket(ticket);
+@@ -137,11 +143,13 @@ export function renderOrders(contentEl, payload) {
+     if (!orders.length) {
+       return;
+     }
+-    const confirmed = await showDangerCheckboxModal({
++    const confirmed = await showConfirmationModal({
+       title: "Cancel All Pending Orders",
+       message: `You are about to cancel ${orders.length} pending order(s).`,
++      requireCheckbox: true,
+       checkboxLabel: "I understand this action is irreversible.",
+       confirmLabel: "Cancel All",
++      variant: "danger"
+     });
+     if (!confirmed) {
+       return;
+diff --git a/dashboard/js/positions.js b/dashboard/js/positions.js
+index 06ddc9a..eb83d70 100644
+--- a/dashboard/js/positions.js
++++ b/dashboard/js/positions.js
+@@ -1,39 +1,7 @@
+ import { api } from "./app.js";
+ import { showEnvelope, showSuccess, showError } from "./message-renderer.js";
+-
+-function showDangerCheckboxModal({ title, message, checkboxLabel, confirmLabel }) {
+-  return new Promise((resolve) => {
+-    const overlay = document.createElement("div");
+-    overlay.className = "confirm-modal-overlay";
+-    overlay.innerHTML = `
+-      <div class="confirm-modal">
+-        <h4>${title}</h4>
+-        <p>${message}</p>
+-        <label class="confirm-checkbox">
+-          <input type="checkbox" id="confirmCheckbox"> ${checkboxLabel}
+-        </label>
+-        <div class="confirm-actions">
+-          <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+-          <button class="btn btn-danger" id="confirmBtn" disabled>${confirmLabel}</button>
+-        </div>
+-      </div>
+-    `;
+-
+-    document.body.appendChild(overlay);
+-    const checkbox = overlay.querySelector("#confirmCheckbox");
+-    const confirmBtn = overlay.querySelector("#confirmBtn");
+-    const close = (result) => {
+-      overlay.remove();
+-      resolve(result);
+-    };
+-
+-    checkbox.addEventListener("change", () => {
+-      confirmBtn.disabled = !checkbox.checked;
+-    });
+-    overlay.querySelector("#cancelBtn").addEventListener("click", () => close(false));
+-    confirmBtn.addEventListener("click", () => close(true));
+-  });
+-}
++import { renderReadinessPanel, isReadinessBlocked, isReadinessDegraded, isWarningAcknowledged } from "./readiness.js";
++import { showConfirmationModal } from "./confirmation-modal.js";
+ 
+ function isGuardedDuplicateError(err) {
+   const message = String(err?.message || "");
+@@ -160,6 +128,23 @@ export function renderPositions(contentEl, payload, accountPayload) {
+   html += `</div>`;
+   contentEl.innerHTML = html;
+ 
++  // T025: Render readiness panel before positions grid
++  const readinessPanel = document.createElement("div");
++  readinessPanel.id = "positions-readiness-panel";
++  const gridEl = contentEl.querySelector(".grid");
++  contentEl.insertBefore(readinessPanel, gridEl);
++  renderReadinessPanel(readinessPanel, { operation: "close_position" });
++
++  // T031: Listen for readiness acknowledgment changes
++  contentEl.addEventListener("readiness-ack-change", () => {
++    const isBlocked = isReadinessBlocked();
++    contentEl.querySelectorAll(".close-pos-btn").forEach((btn) => {
++      btn.disabled = isBlocked;
++    });
++    const closeAllBtn = document.getElementById("closeAllBtn");
++    if (closeAllBtn) closeAllBtn.disabled = isBlocked;
++  });
++
+   const closePositionByTicket = async (ticket, volume) => {
+     const body = { ticket: Number(ticket) };
+     if (volume !== null && volume !== undefined) {
+@@ -192,10 +177,44 @@ export function renderPositions(contentEl, payload, accountPayload) {
+         return;
+       }
+ 
+-      const closeText = parsed.volume === null ? "full" : `partial (${parsed.volume})`;
+-      const approved = confirm(
+-        `Close ${closeText} ${type.toUpperCase()} position ${symbol} (${volume} lots)? This is irreversible.`,
+-      );
++      // T028: Check readiness before close
++      if (isReadinessBlocked()) {
++        showEnvelope({
++          category: "system",
++          severity: "critical",
++          title: "Operation Blocked",
++          message: "Readiness checks failed. Cannot proceed with closing position.",
++        });
++        target.disabled = false;
++        return;
++      }
++
++      if (isReadinessDegraded() && !isWarningAcknowledged()) {
++        showEnvelope({
++          category: "system",
++          severity: "warning",
++          title: "Warnings Not Acknowledged",
++          message: "You must acknowledge the warnings before proceeding.",
++        });
++        target.disabled = false;
++        return;
++      }
++
++      const closeVolume = parsed.volume === null ? volume : parsed.volume;
++      const approved = await showConfirmationModal({
++        title: "Confirm Close Position",
++        message: "You are about to close a position. This action is irreversible.",
++        details: [
++          { label: "Symbol", value: symbol },
++          { label: "Ticket", value: ticket },
++          { label: "Volume", value: closeVolume },
++          { label: "Direction", value: type }
++        ],
++        riskSummary: "Closing this position will realize any unrealized P&L.",
++        confirmLabel: "Close Position",
++        variant: "danger",
++        requireCheckbox: true
++      });
+       if (!approved) {
+         target.disabled = false;
+         return;
+@@ -219,11 +238,13 @@ export function renderPositions(contentEl, payload, accountPayload) {
+     if (!positions.length) {
+       return;
+     }
+-    const confirmed = await showDangerCheckboxModal({
++    const confirmed = await showConfirmationModal({
+       title: "Close All Positions",
+       message: `You are about to close ${positions.length} open position(s).`,
+       checkboxLabel: "I understand this action is irreversible.",
+       confirmLabel: "Close All",
++      variant: "danger",
++      requireCheckbox: true
+     });
+     if (!confirmed) {
+       return;
+diff --git a/dashboard/js/support-package.js b/dashboard/js/support-package.js
+new file mode 100644
+index 0000000..b51b764
+--- /dev/null
++++ b/dashboard/js/support-package.js
+@@ -0,0 +1,74 @@
++/** MT5 Bridge — Support Package Clipboard Helper (Phase 6). */
++
++export async function copySupportPackage(data) {
++  const {
++    tracking_id,
++    operation,
++    symbol,
++    direction,
++    volume,
++    readiness_status,
++    error_code,
++    error_message,
++    timestamp
++  } = data;
++
++  const text = `--- MT5 Bridge Support Package ---
++Tracking ID   : ${tracking_id}
++Operation     : ${operation}
++Symbol        : ${symbol || "N/A"}
++Direction     : ${direction || "N/A"}
++Volume        : ${volume || "N/A"}
++Readiness     : ${readiness_status || "N/A"}
++Error Code    : ${error_code || "N/A"}
++Error Message : ${error_message || "N/A"}
++Timestamp     : ${timestamp}
++----------------------------------`;
++
++  try {
++    await navigator.clipboard.writeText(text);
++    return { success: true };
++  } catch (err) {
++    const overlay = document.createElement("div");
++    overlay.className = "confirmation-modal-overlay";
++    overlay.style.zIndex = "10000";
++
++    const modal = document.createElement("div");
++    modal.className = "confirmation-modal";
++
++    const titleEl = document.createElement("h4");
++    titleEl.textContent = "Support Package";
++    modal.appendChild(titleEl);
++
++    const descEl = document.createElement("p");
++    descEl.textContent = "Could not copy automatically. Please copy the text below:";
++    modal.appendChild(descEl);
++
++    const textarea = document.createElement("textarea");
++    textarea.readOnly = true;
++    textarea.value = text;
++    textarea.style.width = "100%";
++    textarea.style.height = "200px";
++    textarea.style.fontFamily = "monospace";
++    modal.appendChild(textarea);
++
++    const actionsEl = document.createElement("div");
++    actionsEl.className = "confirmation-modal-actions";
++
++    const closeBtn = document.createElement("button");
++    closeBtn.className = "btn btn-secondary";
++    closeBtn.textContent = "Close";
++    closeBtn.addEventListener("click", () => {
++      overlay.remove();
++    });
++
++    actionsEl.appendChild(closeBtn);
++    modal.appendChild(actionsEl);
++    overlay.appendChild(modal);
++    document.body.appendChild(overlay);
++
++    textarea.select();
++
++    return { success: false, fallback: true };
++  }
++}
+diff --git a/specs/016-phase7-native-parity-surface-and-conformance/tasks.md b/specs/016-phase7-native-parity-surface-and-conformance/tasks.md
+new file mode 100644
+index 0000000..1046768
+--- /dev/null
++++ b/specs/016-phase7-native-parity-surface-and-conformance/tasks.md
+@@ -0,0 +1,195 @@
++# Tasks: Phase 7 — Native Parity Surface and Conformance
++
++**Input**: Design documents from `/specs/016-phase7-native-parity-surface-and-conformance/`
++**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api-contracts.md
++
++**Organization**: Tasks grouped by user story. Each phase is independently dispatchable to one Jules agent.
++
++## Format: `[ID] [P?] [Story] Description`
++
++- **[P]**: Can run in parallel (different files, no dependencies)
++- **[Story]**: Which user story this task belongs to (US1–US5)
++- All file paths are relative to repository root
++
++---
++
++## Phase 1: Setup (Shared Infrastructure)
++
++**Purpose**: Create new directories, config files, and shared models that all stories depend on.
++
++- [ ] T001 Create `app/conformance/` directory with empty `__init__.py` at `app/conformance/__init__.py`
++- [ ] T002 [P] Create `config/` directory and empty `config/governance-checklist.yaml` scaffold (YAML with top-level `endpoints: {}` key)
++- [ ] T003 [P] Create `config/compatibility-profiles.yaml` with the three named profiles (`strict_safe`, `balanced`, `max_compat`) and their four dimensions per research.md §4 profile matrix
++- [ ] T004 [P] Create `CompatibilityProfile` Pydantic model in `app/models/compatibility.py` per data-model.md (fields: `name`, `retry_aggressiveness`, `optional_field_handling`, `gating_strictness`, `warning_verbosity`)
++- [ ] T005 [P] Create `ConformanceResult` and `ConformanceReport` Pydantic models in `app/models/conformance.py` per data-model.md
++- [ ] T006 Add `COMPATIBILITY_PROFILE` setting to `app/config.py` (`str`, default `"strict_safe"`, alias `COMPATIBILITY_PROFILE`). Add helper `get_compatibility_profile()` that loads the YAML and returns the matching `CompatibilityProfile` instance.
++
++**Checkpoint**: Directory structure exists, shared models importable, profiles YAML loadable.
++
++---
++
++## Phase 2: US1 — Safe Domain Extensions (Priority: P1) 🎯 MVP
++
++**Goal**: Add `POST /margin-check` and `POST /profit-calc` to the safe domain API — the two calculation endpoints missing from the parity matrix. Wrapped in canonical envelope, readiness-gated.
++
++**Independent Test**: `curl -X POST /margin-check -d '{"symbol":"EURUSD","volume":1.0,"action":"buy"}'` returns canonical envelope with `margin`, `free_margin`, `margin_rate`.
++
++- [ ] T007 [P] [US1] Create `MarginCheckRequest` and `MarginCheckResponse` Pydantic models in `app/models/margin.py` per data-model.md
++- [ ] T008 [P] [US1] Create `ProfitCalcRequest` and `ProfitCalcResponse` Pydantic models in `app/models/margin.py` (same file, co-located)
++- [ ] T009 [US1] Implement `POST /margin-check` route in `app/routes/margin_check.py`: validate request, resolve symbol via `symbol_map`, call `mt5.order_calc_margin()` through worker `submit()`, wrap in canonical envelope, gate on readiness (worker state must be `AUTHORIZED`)
++- [ ] T010 [US1] Implement `POST /profit-calc` route in `app/routes/profit_calc.py`: validate request, call `mt5.order_calc_profit()` through worker `submit()`, wrap in canonical envelope, readiness-gated
++- [ ] T011 [US1] Register `margin_check_router` and `profit_calc_router` in `app/routes/__init__.py` and mount in the FastAPI app
++- [ ] T012 [US1] Write unit tests for margin-check and profit-calc in `tests/unit/test_margin_check.py` and `tests/unit/test_profit_calc.py` — mock `mt5.order_calc_margin` and `mt5.order_calc_profit`, verify canonical envelope shape, error codes, readiness gating
++
++**Checkpoint**: Safe domain calculation endpoints operational. Standard operators can calculate margin/profit without expert namespace.
++
++---
++
++## Phase 3: US2 — Expert/Advanced Namespace (Priority: P2)
++
++**Goal**: Introduce the `/mt5/raw/` expert namespace with read-heavy endpoints: margin-check, profit-calc, market-book, terminal-info, account-info, last-error. Every response includes `namespace: "advanced"` and `safety_disclaimer`.
++
++**Independent Test**: `curl /mt5/raw/margin-check?symbol=EURUSD&volume=1&action=buy` returns response with `namespace`, `safety_disclaimer`, and raw data.
++
++- [ ] T013 [P] [US2] Create `MarketBookEntry` Pydantic model in `app/models/market_book.py` per data-model.md
++- [ ] T014 [US2] Create expert namespace router in `app/routes/raw_namespace.py`:
++  - FastAPI `APIRouter(prefix="/mt5/raw", tags=["advanced"])` with `api_key_dependency`
++  - `GET /margin-check` — query params `symbol`, `volume`, `action`; calls `mt5.order_calc_margin()` via worker; response includes `namespace`, `safety_disclaimer`
++  - `GET /profit-calc` — query params `symbol`, `volume`, `action`, `price_open`, `price_close`; calls `mt5.order_calc_profit()` via worker
++  - `GET /market-book` — query param `symbol`; calls `mt5.market_book_add()`, `mt5.market_book_get()`, `mt5.market_book_release()` via worker; returns list of `MarketBookEntry`
++  - `GET /terminal-info` — calls `mt5.terminal_info()` via worker; returns all fields (not curated)
++  - `GET /account-info` — calls `mt5.account_info()` via worker; returns all fields
++  - `GET /last-error` — calls `mt5.last_error()` via worker; returns raw error tuple
++- [ ] T015 [US2] Register `raw_namespace_router` in `app/routes/__init__.py` and mount in the FastAPI app
++- [ ] T016 [US2] Write unit tests for raw namespace in `tests/unit/test_raw_namespace.py` — mock MT5 functions, verify `namespace` and `safety_disclaimer` fields present in all responses, verify auth required, verify market-book lifecycle
++
++**Checkpoint**: Expert namespace endpoints accessible to advanced users via API key. Safe domain unaffected.
++
++---
++
++## Phase 4: US3 — Compatibility Profiles (Priority: P3)
++
++**Goal**: Support three named operational profiles (`strict_safe`, `balanced`, `max_compat`) that control bridge behavior. Switchable at runtime via env var, exposed in `/diagnostics/runtime`, change logged.
++
++**Independent Test**: Set `COMPATIBILITY_PROFILE=balanced`, call `GET /diagnostics/runtime`, verify profile appears in response with all four dimensions.
++
++- [ ] T017 [US3] Modify `app/routes/diagnostics.py` to include `compatibility_profile` object in the `/diagnostics/runtime` response — read from `get_compatibility_profile()` helper in config
++- [ ] T018 [US3] Implement profile-change audit logging in `app/config.py`: when `get_compatibility_profile()` detects a different profile than last loaded, emit a structured log entry `{ event: "compatibility_profile_changed", old_profile: "...", new_profile: "...", timestamp: "..." }`
++- [ ] T019 [US3] Write unit tests for compatibility profiles in `tests/unit/test_compatibility.py` — test profile loading from YAML, default profile, invalid profile handling, diagnostics response shape, audit log emission
++
++**Checkpoint**: Operator can switch profiles via env var without restart, observe in runtime diagnostics, and see audit log.
++
++---
++
++## Phase 5: US4 — Conformance Harness (Priority: P4)
++
++**Goal**: Build a CLI-runnable conformance suite (`python -m app.conformance`) that exercises the bridge API against a connected broker and produces JSON + Markdown reports with a production compatibility mode recommendation.
++
++**Independent Test**: `python -m app.conformance --base-url http://localhost:8001 --api-key test --output-json /tmp/conformance.json` produces a valid ConformanceReport JSON.
++
++- [ ] T020 [P] [US4] Create conformance CLI entry point at `app/conformance/__main__.py` — argparse with `--base-url`, `--api-key`, `--include-write-tests`, `--output-json`, `--output-md`
++- [ ] T021 [P] [US4] Create conformance test runner at `app/conformance/runner.py` — orchestrates probe execution by category, collects `ConformanceResult` list, builds `ConformanceReport`
++- [ ] T022 [P] [US4] Create connection probe at `app/conformance/probes/connection.py` — tests `/health`, `/diagnostics/runtime`, `/readiness`; returns list of `ConformanceResult`
++- [ ] T023 [P] [US4] Create symbols probe at `app/conformance/probes/symbols.py` — tests `/broker-capabilities`, symbol resolution; returns `ConformanceResult` list
++- [ ] T024 [P] [US4] Create pricing probe at `app/conformance/probes/pricing.py` — tests `/tick/{symbol}`, price data availability; returns `ConformanceResult` list
++- [ ] T025 [P] [US4] Create calculations probe at `app/conformance/probes/calculations.py` — tests `/margin-check`, `/profit-calc`, `/mt5/raw/margin-check`, `/mt5/raw/profit-calc`; returns `ConformanceResult` list
++- [ ] T026 [P] [US4] Create market-book probe at `app/conformance/probes/market_book.py` — tests `/mt5/raw/market-book`; handles `not_supported` gracefully; returns `ConformanceResult` list
++- [ ] T027 [P] [US4] Create write-tests probe at `app/conformance/probes/write_tests.py` — opt-in only (skipped unless `--include-write-tests`); tests order send + immediate cancel on test account; returns `ConformanceResult` list
++- [ ] T028 [US4] Create report generator at `app/conformance/reporter.py` — takes `ConformanceReport`, writes JSON to stdout or file, generates Markdown summary with pass/warn/fail table, recommendation section per contracts/api-contracts.md §Conformance CLI
++- [ ] T029 [US4] Create `app/conformance/probes/__init__.py` that exports all probe modules
++- [ ] T030 [US4] Wire runner to discover and execute all probes, compute summary stats, generate recommendation based on pass/warn/fail ratios, output via reporter
++- [ ] T031 [US4] Write integration test for conformance harness in `tests/integration/test_conformance.py` — mock bridge API responses, verify report structure matches `ConformanceReport` model, verify JSON and Markdown output
++
++**Checkpoint**: Operator can run conformance suite against any broker environment and receive a structured report with compatibility recommendation.
++
++---
++
++## Phase 6: US5 — Governance & Coverage Matrix (Priority: P5)
++
++**Goal**: Establish a machine-readable governance checklist for all raw endpoints and a parity coverage matrix tracking MT5 capability coverage.
++
++**Independent Test**: Parse `config/governance-checklist.yaml` — every `/mt5/raw/*` endpoint has `safety_class`, `auth_required`, `logging_policy`, `readiness_gated`, `approved_by`, `approved_date`.
++
++- [ ] T032 [P] [US5] Create `GovernanceEntry` Pydantic model in `app/models/conformance.py` (append to existing file) per data-model.md
++- [ ] T033 [P] [US5] Create `ParityCoverageEntry` Pydantic model in `app/models/conformance.py` (append to existing file) per data-model.md
++- [ ] T034 [US5] Populate `config/governance-checklist.yaml` with governance entries for all 6 raw endpoints: `/mt5/raw/margin-check`, `/mt5/raw/profit-calc`, `/mt5/raw/market-book`, `/mt5/raw/terminal-info`, `/mt5/raw/account-info`, `/mt5/raw/last-error` — each with `safety_class`, `auth_required`, `logging_policy`, `readiness_gated`
++- [ ] T035 [US5] Create `config/parity-coverage-matrix.yaml` with the 7 MT5 capability categories from research.md §1 — fill `implemented`, `safe_domain_endpoint`, `raw_endpoint`, `constraints`, `known_broker_variance`, `test_coverage` for each capability
++- [ ] T036 [US5] Create a governance validation script at `scripts/validate_governance.py` that loads the YAML and validates all raw endpoints have complete governance entries — exit non-zero if any field is missing
++
++**Checkpoint**: Full governance and coverage documentation in place. Machine-readable and validatable.
++
++---
++
++## Phase 7: Polish & Cross-Cutting Concerns
++
++**Purpose**: Final integration, documentation, and validation.
++
++- [ ] T037 Update `specs/016-phase7-native-parity-surface-and-conformance/quickstart.md` with actual CLI commands for all new endpoints and conformance harness
++- [ ] T038 Verify no existing safe domain endpoints are affected — run full `pytest` suite and confirm all prior tests pass
++- [ ] T039 Run governance validation script: `python scripts/validate_governance.py`
++- [ ] T040 Run conformance suite dry-run (if MT5 available): `python -m app.conformance --base-url http://localhost:8001 --api-key test --output-json /tmp/conformance.json`
++- [ ] T041 Code cleanup — ensure all new files have module docstrings, type hints, and follow project conventions
++
++---
++
++## Dependencies & Execution Order
++
++### Phase Dependencies
++
++- **Phase 1 (Setup)**: No dependencies — start immediately
++- **Phase 2 (US1 — Safe Domain)**: Depends on T004, T006 from Phase 1
++- **Phase 3 (US2 — Expert Namespace)**: Depends on Phase 1 complete; can run in parallel with Phase 2
++- **Phase 4 (US3 — Compatibility)**: Depends on T004, T006 from Phase 1; can run in parallel with Phases 2/3
++- **Phase 5 (US4 — Conformance)**: Depends on Phases 2 + 3 (needs endpoints to test)
++- **Phase 6 (US5 — Governance)**: Depends on Phase 3 (needs raw endpoint list); can run in parallel with Phase 5
++- **Phase 7 (Polish)**: Depends on all prior phases
++
++### Parallel Dispatch Strategy (Jules Agents)
++
++```text
++Agent 1: Phase 1 (Setup)        ← runs first, blocks others
++Agent 2: Phase 2 (US1)          ← after Phase 1
++Agent 3: Phase 3 (US2)          ← after Phase 1, parallel with Agent 2
++Agent 4: Phase 4 (US3)          ← after Phase 1, parallel with Agents 2/3
++Agent 5: Phase 5 (US4)          ← after Agents 2+3 complete
++Agent 6: Phase 6 (US5)          ← after Agent 3, parallel with Agent 5
++Agent 7: Phase 7 (Polish)       ← after all agents complete
++```
++
++### Within Each Phase
++
++- Tasks marked `[P]` within a phase can run in parallel
++- Models before services/routes
++- Implementation before tests
++- Registration (T011, T015) after route implementation
++
++---
++
++## Implementation Strategy
++
++### MVP First (Phase 1 + Phase 2 Only)
++
++1. Complete Phase 1: Setup
++2. Complete Phase 2: US1 — Safe Domain Extensions
++3. **STOP and VALIDATE**: Margin-check + profit-calc working with canonical envelope
++4. This alone closes the primary parity gap
++
++### Incremental Delivery
++
++1. Phase 1 (Setup) → shared infrastructure ready
++2. Phase 2 (US1) → margin/profit calcs in safe domain (MVP)
++3. Phase 3 (US2) → expert namespace deployed
++4. Phase 4 (US3) → compatibility profiles active
++5. Phase 5 (US4) → conformance harness runnable
++6. Phase 6 (US5) → governance + coverage matrix complete
++7. Phase 7 (Polish) → documentation, validation, cleanup
++
++---
++
++## Notes
++
++- All new routes follow existing patterns: `APIRouter`, `api_key_dependency`, canonical envelope wrapping
++- Expert namespace (`/mt5/raw/`) is read-heavy initially per spec assumptions — no raw `order_send`
++- Conformance harness uses bridge API (not direct MT5 calls) per spec
++- Dashboard is NOT modified this phase (per plan.md)
++- Total: 41 tasks across 7 phases
+

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - USER_UID=1000
+        - USER_GID=1000
+    volumes:
+      - mt5-connection-bridge_workspace:/workspace
+    ports:
+      - "5173:5173"
+      - "1337:1337"
+    command: sleep infinity
+    networks: [wsl-bridge]
+
+volumes:
+  mt5-connection-bridge_workspace:
+    # Named volume for bare repo and worktrees
+
+networks:
+  wsl-bridge:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1350

@@ -1,0 +1,12 @@
+# .dockerignore
+# Do not send Git objects or existing node_modules to the build context
+.git/
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.pyc
+
+# Do not send the .devcontainer folder itself
+.devcontainer/
