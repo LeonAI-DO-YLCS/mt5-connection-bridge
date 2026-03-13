@@ -1,0 +1,33 @@
+openapi: 3.0.3
+info:
+  title: MT5 Bridge API Contract
+  version: 1.2.0
+  description: |
+    Current contract surface for the MT5 bridge dashboard and operational
+    endpoints. This file is kept at the canonical spec path expected by the
+    bridge contract suite.
+paths:
+  /health:
+    get:
+      summary: Bridge health and readiness snapshot
+  /prices:
+    get:
+      summary: Historical OHLCV prices
+  /execute:
+    post:
+      summary: Execute a market trade
+  /symbols:
+    get:
+      summary: List configured bridge symbols
+  /logs:
+    get:
+      summary: Paginated bridge audit logs
+  /config:
+    get:
+      summary: Runtime bridge configuration snapshot
+  /worker/state:
+    get:
+      summary: Worker state and queue depth
+  /metrics:
+    get:
+      summary: Rolling operational metrics

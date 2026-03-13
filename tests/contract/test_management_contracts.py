@@ -27,7 +27,7 @@ def test_close_position_contract(client, auth_headers, mock_execution_enabled):
             filled_quantity=0.1,
             ticket_id=101,
             error=None,
-        ), "close"))
+        ), "close", "with_comment", None, None))
         response = client.post("/close-position", headers=auth_headers, json={"ticket": 1, "volume": 0.1})
         assert response.status_code == 200
         TradeResponse.model_validate(response.json())

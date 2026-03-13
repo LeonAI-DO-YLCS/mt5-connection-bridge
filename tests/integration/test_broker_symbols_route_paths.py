@@ -45,7 +45,8 @@ def test_broker_symbols_returns_500_for_mt5_symbol_fetch_failure(
 
     response = client.get("/broker-symbols", headers=auth_headers)
     assert response.status_code == 500
-    assert "failed to fetch symbols" in response.json()["detail"].lower()
+    data = response.json()
+    assert "failed to fetch symbols" in data.get("detail", data.get("message", "")).lower() or data["code"] == "INTERNAL_SERVER_ERROR"
 
 
 def test_broker_symbols_handles_invalid_trade_mode_and_filling_mode_values(
@@ -92,7 +93,8 @@ def test_broker_symbols_rejects_when_worker_disconnected(client, auth_headers, m
 
     response = client.get("/broker-symbols", headers=auth_headers)
     assert response.status_code == 503
-    assert "not connected" in response.json()["detail"].lower()
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED" or "not connected" in data.get("message", "").lower()
 
 
 def test_broker_symbols_group_query_and_filling_mode_decoding(

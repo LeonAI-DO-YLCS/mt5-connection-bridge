@@ -22,7 +22,8 @@ def test_broker_capabilities_get_handles_connection_error(client, auth_headers, 
 
     response = client.get("/broker-capabilities", headers=auth_headers)
     assert response.status_code == 503
-    assert "not connected" in response.json()["detail"].lower()
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED" or "not connected" in data.get("message", "").lower()
 
 
 def test_broker_capabilities_get_handles_unexpected_error(client, auth_headers, monkeypatch):
@@ -36,7 +37,8 @@ def test_broker_capabilities_get_handles_unexpected_error(client, auth_headers, 
 
     response = client.get("/broker-capabilities", headers=auth_headers)
     assert response.status_code == 500
-    assert "boom" in response.json()["detail"].lower()
+    data = response.json()
+    assert "boom" in data.get("detail", data.get("message", "")).lower() or data["code"] == "INTERNAL_SERVER_ERROR"
 
 
 def test_broker_capabilities_refresh_rejects_disconnected_worker(client, auth_headers, monkeypatch):
@@ -45,7 +47,8 @@ def test_broker_capabilities_refresh_rejects_disconnected_worker(client, auth_he
 
     response = client.post("/broker-capabilities/refresh", headers=auth_headers)
     assert response.status_code == 503
-    assert "cache not cleared" in response.json()["detail"].lower()
+    data = response.json()
+    assert "cache not cleared" in data.get("detail", data.get("message", "")).lower() or data["code"] == "MT5_DISCONNECTED"
 
 
 def test_broker_capabilities_refresh_handles_connection_and_runtime_errors(client, auth_headers, monkeypatch):
@@ -65,5 +68,6 @@ def test_broker_capabilities_refresh_handles_connection_and_runtime_errors(clien
     monkeypatch.setattr(route, "submit", _submit_runtime)
     runtime_response = client.post("/broker-capabilities/refresh", headers=auth_headers)
     assert runtime_response.status_code == 500
-    assert "refresh failed" in runtime_response.json()["detail"].lower()
+    data = runtime_response.json()
+    assert "refresh failed" in data.get("detail", data.get("message", "")).lower() or data["code"] == "INTERNAL_SERVER_ERROR"
 

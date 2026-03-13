@@ -26,7 +26,7 @@ def test_close_position_print():
         mock_result = SimpleNamespace(retcode=10009, price=1.085, volume=0.1, order=9999)
         mock_mt5.order_send.return_value = mock_result
 
-        response = client.post("/close-position", json={"ticket": 12345}, headers={"X-API-Key": "test-key-1"})
+        response = client.post("/close-position", json={"ticket": 12345}, headers={"X-API-Key": "test-api-key"})
         print(response.json())
         assert response.status_code == 200
 

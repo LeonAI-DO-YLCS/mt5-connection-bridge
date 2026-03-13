@@ -19,7 +19,13 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
-specs/
+specs/*
+!specs/001-mt5-bridge-dashboard/
+!specs/001-mt5-bridge-dashboard/contracts/
+!specs/001-mt5-bridge-dashboard/contracts/openapi.yaml
+!specs/006-mt5-bridge-dashboard/
+!specs/006-mt5-bridge-dashboard/contracts/
+!specs/006-mt5-bridge-dashboard/contracts/api-contracts.md
 docs/plans/
 tests/node_modules/
 build/

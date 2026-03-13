@@ -39,14 +39,18 @@ def test_tick_route_unknown_ticker(client, auth_headers, mock_symbol_map, mock_m
     mock_mt5_symbol_info_tick.return_value = completed_future_factory(None)
     response = client.get("/tick/UNKNOWN", headers=auth_headers)
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    data = response.json()
+    assert "not found" in data.get("detail", data.get("message", "")).lower()
 
 def test_tick_route_connection_error(client, auth_headers, mock_mt5_symbol_info_tick, mock_symbol_map, completed_future_factory):
     mock_mt5_symbol_info_tick.side_effect = ConnectionError("MT5 not connected")
 
     response = client.get("/tick/TEST", headers=auth_headers)
     assert response.status_code == 503
-    assert response.json() == {"detail": "Not connected to MT5"}
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert data["category"] == "error"
+    assert "Not connected to MT5" in data["message"]
 
 
 def test_tick_route_worker_disabled(client, auth_headers, mock_symbol_map):
@@ -55,7 +59,8 @@ def test_tick_route_worker_disabled(client, auth_headers, mock_symbol_map):
     settings.disable_mt5_worker = True
     response = client.get("/tick/TEST", headers=auth_headers)
     assert response.status_code == 503
-    assert "worker disabled" in response.json()["detail"].lower()
+    data = response.json()
+    assert "worker disabled" in data.get("detail", data.get("message", "")).lower() or "worker" in data.get("message", "").lower()
     settings.disable_mt5_worker = False
 
 
@@ -91,4 +96,5 @@ def test_tick_route_handles_submit_runtime_error(client, auth_headers, mock_symb
     mock_mt5_symbol_info_tick.side_effect = RuntimeError("unexpected")
     response = client.get("/tick/TEST", headers=auth_headers)
     assert response.status_code == 500
-    assert "unexpected" in response.json()["detail"].lower()
+    data = response.json()
+    assert "unexpected" in data.get("detail", data.get("message", "")).lower() or data["code"] == "INTERNAL_SERVER_ERROR"

@@ -123,7 +123,9 @@ def test_order_check_unknown_ticker(client, auth_headers):
         }
     )
     assert response.status_code == 404
-    assert "Unknown ticker" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "SYMBOL_NOT_CONFIGURED"
+    assert "ticker" in data.get("detail", data.get("message", "")).lower() or "symbol" in data.get("message", "").lower()
 
 
 def test_order_check_connection_error(client, auth_headers, mock_mt5_submit, mock_get_state):

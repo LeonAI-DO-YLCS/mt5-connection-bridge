@@ -39,7 +39,9 @@ def test_modify_sltp_execution_disabled(client, auth_headers, monkeypatch):
         json={"sl": 1.1000, "tp": 1.2000}
     )
     assert response.status_code == 403
-    assert "Execution disabled" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "EXECUTION_DISABLED"
+    assert "disabled" in data["message"].lower()
 
 def test_modify_sltp_connection_error(client, auth_headers, mock_mt5_submit):
     from app.main import settings
@@ -52,4 +54,6 @@ def test_modify_sltp_connection_error(client, auth_headers, mock_mt5_submit):
         json={"sl": 1.1000, "tp": 1.2000}
     )
     assert response.status_code == 503
-    assert "Not connected to MT5" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert "Not connected to MT5" in data["message"]

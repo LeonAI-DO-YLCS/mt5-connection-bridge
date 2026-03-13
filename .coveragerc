@@ -1,3 +1,5 @@
 [run]
+source = mt5-connection-bridge/app
 omit =
-    app/mt5_worker.py
+    */mt5_worker.py
+    */backend/*

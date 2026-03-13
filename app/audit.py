@@ -37,6 +37,10 @@ def _task_log_path() -> Path:
     return _LOG_DIR / "tasks.jsonl"
 
 
+def _general_log_path() -> Path:
+    return _LOG_DIR / "requests.jsonl"
+
+
 def _parse_iso_ts(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
@@ -171,6 +175,32 @@ def log_task_event(
         _append_jsonl(_task_log_path(), entry)
     except Exception as exc:
         logger.error("Failed to write task event log: %s", exc)
+
+
+def log_request(
+    endpoint: str,
+    method: str,
+    status_code: int,
+    duration_ms: float,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    _ensure_log_dir()
+
+    entry: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_type": "api_request",
+        "method": method,
+        "endpoint": endpoint,
+        "status_code": status_code,
+        "duration_ms": duration_ms,
+    }
+    if metadata:
+        entry["metadata"] = metadata
+
+    try:
+        _append_jsonl(_general_log_path(), entry)
+    except Exception as exc:
+        logger.error("Failed to write request audit log: %s", exc)
 
 
 def read_trade_logs(limit: int = 50, offset: int = 0) -> LogsResponse:

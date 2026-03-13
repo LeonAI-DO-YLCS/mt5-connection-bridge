@@ -74,7 +74,9 @@ def test_close_position_execution_disabled(client, auth_headers, monkeypatch):
         json={"ticket": 12345}
     )
     assert response.status_code == 403
-    assert "Execution disabled" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "EXECUTION_DISABLED"
+    assert "disabled" in data["message"].lower()
 
 
 def test_close_position_unknown_ticket_returns_404(client, auth_headers, mock_mt5_submit, mock_get_state, completed_future_factory):
@@ -92,7 +94,9 @@ def test_close_position_unknown_ticket_returns_404(client, auth_headers, mock_mt
         json={"ticket": 999}
     )
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    data = response.json()
+    assert data["code"] == "RESOURCE_NOT_FOUND"
+    assert "not found" in data["message"].lower()
 
 def test_close_position_connection_error(client, auth_headers, mock_mt5_submit, mock_get_state):
     from app.main import settings
@@ -105,4 +109,6 @@ def test_close_position_connection_error(client, auth_headers, mock_mt5_submit, 
         json={"ticket": 12345}
     )
     assert response.status_code == 503
-    assert "Not connected to MT5" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert "Not connected to MT5" in data["message"]

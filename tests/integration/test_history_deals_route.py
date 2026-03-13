@@ -86,4 +86,6 @@ def test_history_deals_connection_error(client, auth_headers, mock_mt5_submit, m
         headers=auth_headers
     )
     assert response.status_code == 503
-    assert "Not connected to MT5" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert "disconnected" in data["message"].lower() or "Not connected" in data["message"]

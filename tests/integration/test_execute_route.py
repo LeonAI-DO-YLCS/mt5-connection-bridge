@@ -21,9 +21,8 @@ def test_execute_blocked_when_disabled(client, auth_headers, monkeypatch, immedi
     response = client.post("/execute", headers=auth_headers, json=BASE_PAYLOAD)
     payload = response.json()
 
-    assert response.status_code == 200
-    assert payload["success"] is False
-    assert "disabled" in payload["error"].lower()
+    assert response.status_code == 403
+    assert payload["code"] == "EXECUTION_DISABLED"
 
 
 def test_execute_pre_dispatch_slippage_rejection(client, auth_headers, monkeypatch, fake_mt5, immediate_submit):
@@ -97,9 +96,8 @@ def test_execute_overload_threshold_rejection(client, auth_headers, monkeypatch,
     response = client.post("/execute", headers=auth_headers, json=BASE_PAYLOAD)
     payload = response.json()
 
-    assert response.status_code == 200
-    assert payload["success"] is False
-    assert "overload" in payload["error"].lower()
+    assert response.status_code == 409
+    assert payload["code"] == "OVERLOAD_OR_SINGLE_FLIGHT"
 
 
 def test_execute_parallel_submission_behavior(client, auth_headers, monkeypatch, immediate_submit):
@@ -112,7 +110,8 @@ def test_execute_parallel_submission_behavior(client, auth_headers, monkeypatch,
     execute_route._inflight_requests = 1
 
     blocked = client.post("/execute", headers=auth_headers, json=BASE_PAYLOAD)
-    assert blocked.json()["success"] is False
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "OVERLOAD_OR_SINGLE_FLIGHT"
 
     allowed_payload = dict(BASE_PAYLOAD)
     allowed_payload["multi_trade_mode"] = True

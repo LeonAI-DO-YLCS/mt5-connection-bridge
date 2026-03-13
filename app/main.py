@@ -83,14 +83,23 @@ app.add_middleware(CompatibilityMiddleware)
 
 @app.middleware("http")
 async def request_metrics_middleware(request: Request, call_next):
+    from .audit import log_request
+    import time
+
+    start_time = time.time()
     endpoint = request.url.path
+    method = request.method
     try:
         response = await call_next(request)
+        duration_ms = (time.time() - start_time) * 1000
     except Exception:
+        duration_ms = (time.time() - start_time) * 1000
         metrics_store.record_request(endpoint, 500)
+        log_request(endpoint, method, 500, duration_ms)
         raise
 
     metrics_store.record_request(endpoint, response.status_code)
+    log_request(endpoint, method, response.status_code, duration_ms)
     return response
 
 
@@ -247,6 +256,7 @@ from .routes.readiness import router as readiness_router  # noqa: E402
 from .routes.margin_check import router as margin_check_router  # noqa: E402
 from .routes.profit_calc import router as profit_calc_router  # noqa: E402
 from .routes.raw_namespace import router as raw_namespace_router  # noqa: E402
+from .routes.fundamentals import router as fundamentals_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(prices_router)
@@ -272,6 +282,7 @@ app.include_router(readiness_router)
 app.include_router(margin_check_router)
 app.include_router(profit_calc_router)
 app.include_router(raw_namespace_router)
+app.include_router(fundamentals_router)
 
 
 _dashboard_dir = Path(__file__).resolve().parent.parent / "dashboard"

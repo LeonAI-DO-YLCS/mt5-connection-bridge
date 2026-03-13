@@ -6,12 +6,12 @@ from app.messaging.codes import ErrorCode
 class TestErrorCodeMembers:
     """Verify all 19 enum members have required metadata."""
 
-    REQUIRED_DOMAINS = {"VALIDATION", "MT5", "EXECUTION", "WORKER", "SYMBOL", "REQUEST", "INTERNAL"}
+    REQUIRED_DOMAINS = {"VALIDATION", "MT5", "EXECUTION", "WORKER", "SYMBOL", "REQUEST", "INTERNAL", "READINESS", "IDEMPOTENCY"}
     VALID_SEVERITIES = {"low", "medium", "high", "critical"}
     VALID_CATEGORIES = {"error", "warning", "status", "advice", "success", "info"}
 
-    def test_exactly_19_members(self):
-        assert len(ErrorCode) == 19
+    def test_exactly_24_members(self):
+        assert len(ErrorCode) == 24
 
     def test_no_duplicate_names(self):
         names = [c.name for c in ErrorCode]

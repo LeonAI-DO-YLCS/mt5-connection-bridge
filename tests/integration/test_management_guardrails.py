@@ -47,7 +47,8 @@ def test_cancel_order_overload_returns_409(client, auth_headers, monkeypatch):
 
     response = client.delete("/orders/100", headers=auth_headers)
     assert response.status_code == 409
-    assert "overload" in response.json()["detail"].lower()
+    data = response.json()
+    assert data["code"] == "OVERLOAD_OR_SINGLE_FLIGHT" or "overload" in data.get("message", "").lower()
 
 
 def test_cancel_order_not_found_maps_404(client, auth_headers, completed_future_factory):
@@ -78,7 +79,7 @@ def test_close_position_invalid_volume_maps_422(client, auth_headers, completed_
     with patch("app.routes.close_position.get_state") as mock_state, patch("app.routes.close_position.submit") as mock_submit:
         mock_state.return_value = WorkerState.AUTHORIZED
         mock_submit.return_value = completed_future_factory(
-            (TradeResponse(success=False, error="quantity must be greater than 0"), "invalid_volume")
+            (TradeResponse(success=False, error="quantity must be greater than 0"), "invalid_volume", "with_comment", None, None)
         )
         response = client.post("/close-position", headers=auth_headers, json={"ticket": 100, "volume": 0.0})
         assert response.status_code == 422

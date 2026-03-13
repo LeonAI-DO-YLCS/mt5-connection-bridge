@@ -94,7 +94,9 @@ def test_broker_symbols_connection_error(client, auth_headers, mock_mt5_submit, 
     
     response = client.get("/broker-symbols", headers=auth_headers)
     assert response.status_code == 503
-    assert "Not connected to MT5" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert "disconnected" in data["message"].lower() or "Not connected" in data["message"]
 
 
 def test_broker_symbols_maps_trade_mode_to_human_label(

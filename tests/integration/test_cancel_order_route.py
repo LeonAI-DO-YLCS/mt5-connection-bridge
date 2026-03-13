@@ -31,7 +31,9 @@ def test_cancel_order_execution_disabled(client, auth_headers, monkeypatch):
 
     response = client.delete("/orders/12345", headers=auth_headers)
     assert response.status_code == 403
-    assert "Execution disabled" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "EXECUTION_DISABLED"
+    assert "disabled" in data["message"].lower()
 
 def test_cancel_order_connection_error(client, auth_headers, mock_mt5_submit):
     from app.main import settings
@@ -40,4 +42,6 @@ def test_cancel_order_connection_error(client, auth_headers, mock_mt5_submit):
 
     response = client.delete("/orders/12345", headers=auth_headers)
     assert response.status_code == 503
-    assert "Not connected to MT5" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert "Not connected to MT5" in data["message"]

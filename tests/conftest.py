@@ -192,6 +192,22 @@ def reset_execute_state():
     execute_route._inflight_requests = 0
 
 
+@pytest.fixture(autouse=True)
+def reset_auth_api_key():
+    """Ensure the auth singleton always has the correct test API key.
+
+    Some tests (e.g. test_auth.py) mutate ``auth._settings.mt5_bridge_api_key``
+    directly.  Without this guard the mutation leaks into subsequent tests,
+    causing spurious 401 failures.
+    """
+    from app import auth
+
+    auth._settings.mt5_bridge_api_key = "test-api-key"
+    yield
+    auth._settings.mt5_bridge_api_key = "test-api-key"
+
+
+
 def pytest_collection_modifyitems(config, items):
     smoke_files = {
         "tests/unit/test_auth.py",

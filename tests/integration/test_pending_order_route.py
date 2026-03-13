@@ -67,7 +67,9 @@ def test_pending_order_execution_disabled(client, auth_headers):
         }
     )
     assert response.status_code == 403
-    assert "Execution disabled" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "EXECUTION_DISABLED"
+    assert "disabled" in data["message"].lower()
 
 def test_pending_order_unknown_ticker(client, auth_headers):
     from app.main import settings
@@ -84,4 +86,6 @@ def test_pending_order_unknown_ticker(client, auth_headers):
         }
     )
     assert response.status_code == 404
-    assert "Unknown ticker" in response.json()["detail"]
+    data = response.json()
+    assert data["code"] == "SYMBOL_NOT_CONFIGURED"
+    assert "ticker" in data["message"].lower() or "symbol" in data["message"].lower()

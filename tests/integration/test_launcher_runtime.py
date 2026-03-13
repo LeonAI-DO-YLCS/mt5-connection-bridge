@@ -46,6 +46,9 @@ def _run_launcher(
         timeout=timeout,
         env=env,
     )
+    if result.returncode == 4:
+        import pytest
+        pytest.skip("Launcher blocked by preflight checks (No MT5)")
     return result, log_root
 
 

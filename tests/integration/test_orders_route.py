@@ -46,4 +46,7 @@ def test_orders_route_connection_error(client, auth_headers, mock_mt5_orders_get
 
     response = client.get("/orders", headers=auth_headers)
     assert response.status_code == 503
-    assert response.json() == {"detail": "Not connected to MT5"}
+    data = response.json()
+    assert data["code"] == "MT5_DISCONNECTED"
+    assert data["category"] == "error"
+    assert "Not connected to MT5" in data["message"]

@@ -139,4 +139,5 @@ async def order_check(req: PendingOrderRequest) -> OrderCheckResponse:
             status_code=500,
             details={"reason": str(e)},
         )
-        raise
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
