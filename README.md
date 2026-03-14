@@ -56,13 +56,13 @@ Key feature flags:
 - `CAPABILITIES_CACHE_TTL_SECONDS=60` (TTL for live broker capabilities snapshot)
 - `AUTO_SELECT_SYMBOLS=true` (auto-select MT5 symbols in Market Watch for direct symbol flows)
 
-## Run
-
 ```bash
 cd mt5-connection-bridge
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
+
+> **WSL2 Users:** Use the launchers below instead to ensure connection to the Windows MT5 terminal.
 
 ## One-Command Launcher (Inspector Mode)
 
@@ -103,6 +103,23 @@ Interactive TUI behavior:
 - set `LAUNCHER_TUI_MODE=false` to force classic streaming logs
 - probe cadence is configurable with `LAUNCHER_TUI_PROBE_SECONDS` (default `5`)
 - access logs are persisted by default in launcher runtime (`LAUNCHER_UVICORN_ACCESS_LOG=true`)
+
+### WSL2 Troubleshooting
+
+If you encounter issues running the launcher from WSL2:
+
+1.  **Permission Denied**: Grant execution permissions to the scripts:
+    ```bash
+    chmod +x scripts/*.sh
+    ```
+2.  **Preflight Blockers**: If the launcher blocks due to missing dependencies in the *Linux* environment (which are only strictly needed on the Windows host), skip preflight:
+    ```bash
+    LAUNCHER_SKIP_PREFLIGHT=true ./scripts/launch_bridge_windows.sh
+    ```
+3.  **Dependency Errors**: If you see `ModuleNotFoundError: No module named 'requests'`, ensure your Windows venv is updated:
+    ```bash
+    powershell.exe -Command ".\.venv-win\Scripts\python.exe -m pip install -r requirements.txt"
+    ```
 
 Per-run artifacts are written to:
 

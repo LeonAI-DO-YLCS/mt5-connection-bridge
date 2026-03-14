@@ -10,3 +10,11 @@ mt5-connection-bridge.xml
 .coveragerc
 .dockerignore
 .env
+.venv-win/
+.specify/
+.ruff_cache/
+.pytest_cache/
+.jules-prompts/
+.jules-patches/
+.specify
+tests/

@@ -68,7 +68,7 @@ export async function renderReadinessPanel(containerEl, formContext = {}) {
     const qs = params.toString();
     const url = `/readiness${qs ? '?' + qs : ''}`;
 
-    const apiKey = window.__bridgeApiKey || localStorage.getItem('mt5_api_key') || '';
+    const apiKey = sessionStorage.getItem('mt5_bridge_api_key') || '';
     const resp = await fetch(url, {
       headers: { 'X-API-KEY': apiKey },
     });

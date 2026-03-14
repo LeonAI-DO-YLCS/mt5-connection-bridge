@@ -17,7 +17,7 @@ param(
     [string]$PythonExe = ""
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 function Read-EnvFile {
     param([string]$Path)
